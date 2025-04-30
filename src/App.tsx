@@ -8,6 +8,7 @@ import { Transactions } from './pages/Transactions'
 import { AssetDetails } from './pages/AssetDetails'
 import { Wallet } from './pages/Wallet'
 import { KeplrProvider } from './contexts/KeplrContext'
+import { AuthProvider } from './hooks/useAuth'
 
 const queryClient = new QueryClient()
 
@@ -16,17 +17,19 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ChakraProvider>
         <KeplrProvider>
-          <Router>
-            <Layout>
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/assets" element={<Assets />} />
-                <Route path="/assets/:id" element={<AssetDetails />} />
-                <Route path="/transactions" element={<Transactions />} />
-                <Route path="/wallet" element={<Wallet />} />
-              </Routes>
-            </Layout>
-          </Router>
+          <AuthProvider>
+            <Router>
+              <Layout>
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/assets" element={<Assets />} />
+                  <Route path="/assets/:id" element={<AssetDetails />} />
+                  <Route path="/transactions" element={<Transactions />} />
+                  <Route path="/wallet" element={<Wallet />} />
+                </Routes>
+              </Layout>
+            </Router>
+          </AuthProvider>
         </KeplrProvider>
       </ChakraProvider>
     </QueryClientProvider>
