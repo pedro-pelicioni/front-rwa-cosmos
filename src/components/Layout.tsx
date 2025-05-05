@@ -57,7 +57,7 @@ export const Layout = ({ children }: LayoutProps) => {
         borderColor="gray.200"
       >
         <VStack align="stretch" spacing={4}>
-          <Heading size="md" mb={4}>RWA Cosmos</Heading>
+          <Heading size="md" mb={4}>Real Estate RWA Cosmos</Heading>
           <Link as={RouterLink} to="/" p={2} borderRadius="md" _hover={{ bg: 'gray.200' }}>
             Home
           </Link>
