@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useAuth } from './useAuth';
+import { OfflineDirectSigner } from '@cosmjs/proto-signing';
 
 interface KeplrWindow {
   keplr?: {
     enable: (chainId: string) => Promise<void>;
-    getOfflineSigner: (chainId: string) => {
-      getAccounts: () => Promise<Array<{ address: string }>>;
-    };
+    getOfflineSigner: (chainId: string) => OfflineDirectSigner;
+    disable: (chainId: string) => Promise<void>;
   };
 }
 
@@ -29,6 +29,11 @@ export const useNoble = () => {
     setError(null);
 
     try {
+      // Força a desconexão antes de conectar novamente
+      if (user) {
+        await disconnect();
+      }
+
       // Solicitar permissão para acessar a carteira
       await window.keplr.enable('noble-1');
 
@@ -42,10 +47,13 @@ export const useNoble = () => {
           walletType: 'noble',
           isConnected: true
         });
+        return true;
       }
+      return false;
     } catch (err) {
       console.error('Erro ao conectar com Noble Wallet:', err);
       setError('Falha ao conectar com a carteira Noble');
+      return false;
     } finally {
       setIsConnecting(false);
     }
@@ -53,10 +61,16 @@ export const useNoble = () => {
 
   const disconnect = async () => {
     try {
+      if (window.keplr) {
+        // Desabilita a conexão com a chain
+        await window.keplr.disable('noble-1');
+      }
       setUser(null);
+      return true;
     } catch (err) {
       console.error('Erro ao desconectar Noble Wallet:', err);
       setError('Falha ao desconectar da carteira Noble');
+      return false;
     }
   };
 

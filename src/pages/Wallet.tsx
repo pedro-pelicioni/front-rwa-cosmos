@@ -21,7 +21,8 @@ import {
   Input,
   Textarea,
   Flex,
-  Spacer
+  Spacer,
+  ButtonGroup
 } from '@chakra-ui/react';
 import { useKeplr } from '../hooks/useKeplr';
 import { useNoble } from '../hooks/useNoble';
@@ -80,6 +81,14 @@ export const Wallet = () => {
       } else {
         await connectNoble();
       }
+      
+      toast({
+        title: 'Conectado',
+        description: `Carteira ${walletType === 'keplr' ? 'Keplr' : 'Noble'} conectada com sucesso!`,
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      });
     } catch (error) {
       console.error(`Erro ao conectar com ${walletType}:`, error);
       toast({
@@ -99,6 +108,14 @@ export const Wallet = () => {
       } else {
         await disconnectNoble();
       }
+      
+      toast({
+        title: 'Desconectado',
+        description: 'Carteira desconectada com sucesso!',
+        status: 'info',
+        duration: 5000,
+        isClosable: true,
+      });
     } catch (error) {
       console.error('Erro ao desconectar:', error);
       toast({
@@ -189,9 +206,9 @@ export const Wallet = () => {
   };
 
   return (
-    <Box>
+    <Box p={6}>
       <Flex mb={6} align="center">
-        <Heading size="lg">Minha Conta</Heading>
+        <Heading size="lg">Conectar Carteira</Heading>
         <Spacer />
         {user && (
           <Button colorScheme="red" onClick={handleDisconnect}>
@@ -201,104 +218,68 @@ export const Wallet = () => {
       </Flex>
       
       {!user ? (
-        <Alert status="warning" borderRadius="md">
-          <AlertIcon />
-          <Box>
-            <AlertTitle>Nenhuma carteira conectada</AlertTitle>
-            <AlertDescription>
-              Conecte sua carteira Keplr ou Noble para acessar esta página.
-            </AlertDescription>
-          </Box>
-        </Alert>
-      ) : (
-        <VStack spacing={6} align="stretch">
-          <Card variant="outline">
-            <CardHeader>
-              <Heading size="md">Informações da Carteira</Heading>
-            </CardHeader>
-            <CardBody>
-              <VStack align="stretch" spacing={4}>
-                <Box>
-                  <Text fontSize="xl" fontWeight="bold" mb={2}>
-                    Olá, {user.name || 'Usuário'}!
-                  </Text>
-                  <Text color="gray.600">
-                    Bem-vindo à sua conta RWA Cosmos.
-                  </Text>
-                </Box>
-                <Divider />
-                <HStack>
-                  <Text fontWeight="bold">Status:</Text>
-                  <Badge colorScheme="green">Conectado</Badge>
-                </HStack>
-                <HStack>
-                  <Text fontWeight="bold">Endereço:</Text>
-                  <Code p={2} borderRadius="md" fontSize="sm" isTruncated maxW="300px">
-                    {user.address}
-                  </Code>
-                </HStack>
-                <HStack>
-                  <Text fontWeight="bold">Rede:</Text>
-                  <Text>Cosmos Hub (cosmoshub-4)</Text>
-                </HStack>
-                {balance && (
-                  <HStack>
-                    <Text fontWeight="bold">Saldo:</Text>
-                    <Text>{balance}</Text>
-                  </HStack>
-                )}
-              </VStack>
-            </CardBody>
-          </Card>
-          
-          <Card variant="outline">
-            <CardHeader>
-              <Heading size="md">Teste de Assinatura</Heading>
-            </CardHeader>
-            <CardBody>
-              <VStack align="stretch" spacing={4}>
-                <Box>
-                  <Text mb={2} fontWeight="bold">Mensagem para assinar:</Text>
-                  <Textarea
-                    value={messageToSign}
-                    onChange={(e) => setMessageToSign(e.target.value)}
-                    placeholder="Digite a mensagem para assinar"
-                    size="md"
-                    rows={3}
-                  />
-                </Box>
-                
+        <Card variant="outline">
+          <CardHeader>
+            <Heading size="md">Escolha sua Carteira</Heading>
+          </CardHeader>
+          <CardBody>
+            <VStack spacing={4} align="stretch">
+              <Text>
+                Conecte-se usando uma das carteiras disponíveis:
+              </Text>
+              <ButtonGroup spacing={4}>
+                <Button
+                  colorScheme="purple"
+                  size="lg"
+                  onClick={() => handleConnect('keplr')}
+                  width="200px"
+                >
+                  Conectar Keplr
+                </Button>
                 <Button
                   colorScheme="blue"
-                  onClick={handleSignMessage}
-                  isLoading={isSigning}
-                  loadingText="Assinando..."
+                  size="lg"
+                  onClick={() => handleConnect('noble')}
+                  width="200px"
                 >
-                  Assinar Mensagem
+                  Conectar Noble
                 </Button>
-                
-                {error && (
-                  <Alert status="error" borderRadius="md">
-                    <AlertIcon />
-                    <Box>
-                      <AlertTitle>Erro</AlertTitle>
-                      <AlertDescription>{error}</AlertDescription>
-                    </Box>
-                  </Alert>
-                )}
-                
-                {signature && (
-                  <Box>
-                    <Text mb={2} fontWeight="bold">Assinatura:</Text>
-                    <Code p={2} borderRadius="md" fontSize="sm" whiteSpace="pre-wrap">
-                      {signature}
-                    </Code>
-                  </Box>
-                )}
-              </VStack>
-            </CardBody>
-          </Card>
-        </VStack>
+              </ButtonGroup>
+            </VStack>
+          </CardBody>
+        </Card>
+      ) : (
+        <Card variant="outline">
+          <CardHeader>
+            <Heading size="md">Carteira Conectada</Heading>
+          </CardHeader>
+          <CardBody>
+            <VStack align="stretch" spacing={4}>
+              <HStack>
+                <Text fontWeight="bold">Status:</Text>
+                <Badge colorScheme="green">Conectado</Badge>
+              </HStack>
+              <HStack>
+                <Text fontWeight="bold">Tipo:</Text>
+                <Badge colorScheme={user.walletType === 'keplr' ? 'purple' : 'blue'}>
+                  {user.walletType === 'keplr' ? 'Keplr' : 'Noble'}
+                </Badge>
+              </HStack>
+              <HStack>
+                <Text fontWeight="bold">Endereço:</Text>
+                <Code p={2} borderRadius="md" fontSize="sm" maxW="500px" isTruncated>
+                  {user.address}
+                </Code>
+              </HStack>
+              {balance && (
+                <HStack>
+                  <Text fontWeight="bold">Saldo:</Text>
+                  <Text>{balance}</Text>
+                </HStack>
+              )}
+            </VStack>
+          </CardBody>
+        </Card>
       )}
     </Box>
   );

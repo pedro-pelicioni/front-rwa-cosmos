@@ -18,6 +18,12 @@ export default defineConfig({
       define: {
         global: 'globalThis',
       },
+      target: 'esnext',
+    },
+  },
+  build: {
+    commonjsOptions: {
+      transformMixedEsModules: true,
     },
   },
 })
