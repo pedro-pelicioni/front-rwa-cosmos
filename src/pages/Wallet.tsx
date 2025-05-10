@@ -26,7 +26,7 @@ import {
 } from '@chakra-ui/react';
 import { useKeplr } from '../hooks/useKeplr';
 import { useNoble } from '../hooks/useNoble';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../hooks/useAuth.tsx';
 import { DirectSecp256k1HdWallet } from '@cosmjs/proto-signing';
 import { SigningCosmWasmClient } from '@cosmjs/cosmwasm-stargate';
 import { Decimal } from '@cosmjs/math';
@@ -44,20 +44,89 @@ export const Wallet = () => {
   const { connect: connectKeplr, disconnect: disconnectKeplr, getBalance: getKeplrBalance } = useKeplr();
   const { connect: connectNoble, disconnect: disconnectNoble, getBalance: getNobleBalance } = useNoble();
   const [balance, setBalance] = useState<string | null>(null);
+  const [statusLog, setStatusLog] = useState<string[]>([]);
+  const [loginStep, setLoginStep] = useState<string>('Aguardando ação do usuário');
+  const [loginError, setLoginError] = useState<string | null>(null);
   const [signature, setSignature] = useState<string | null>(null);
   const [messageToSign, setMessageToSign] = useState('Olá, este é um teste de assinatura!');
   const [isSigning, setIsSigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const toast = useToast();
 
+  // Função para logar etapas
+  const logStep = (msg: string) => {
+    setStatusLog((prev) => {
+      const updated = [...prev, msg];
+      localStorage.setItem('wallet_last_log', JSON.stringify(updated));
+      return updated;
+    });
+    setLoginStep(msg);
+  };
+
+  // Salva erro no localStorage
+  const saveError = (err: string) => {
+    setLoginError(err);
+    localStorage.setItem('wallet_last_error', err);
+  };
+
+  // Ao montar, recupera último erro e log
+  useEffect(() => {
+    const lastError = localStorage.getItem('wallet_last_error');
+    if (lastError) setLoginError(lastError);
+    const lastLog = localStorage.getItem('wallet_last_log');
+    if (lastLog) setStatusLog(JSON.parse(lastLog));
+  }, []);
+
+  // Exemplo de função de login visual
+  const handleLoginVisual = async (walletType: 'keplr' | 'noble') => {
+    setStatusLog([]);
+    setLoginError(null);
+    try {
+      logStep('Iniciando conexão com a carteira: ' + walletType);
+      let authResponse = null;
+      if (walletType === 'keplr') {
+        logStep('Solicitando permissão à extensão Keplr...');
+        authResponse = await connectKeplr();
+      } else {
+        logStep('Solicitando permissão à extensão Noble...');
+        authResponse = await connectNoble();
+      }
+      if (!authResponse) {
+        const errorMsg = 'Falha ao conectar ou autenticar com a carteira. Verifique o console para mais detalhes.';
+        logStep(errorMsg);
+        saveError(errorMsg);
+        return;
+      }
+      logStep('Autenticação concluída com sucesso!');
+      toast({
+        title: 'Autenticado',
+        description: 'Carteira conectada e autenticada com sucesso!',
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      });
+    } catch (err: any) {
+      const errorMsg = err?.message || 'Erro desconhecido durante a autenticação';
+      logStep('Erro: ' + errorMsg);
+      saveError(errorMsg);
+      console.error('Erro detalhado:', err);
+      toast({
+        title: 'Erro',
+        description: errorMsg,
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+
   useEffect(() => {
     const fetchBalance = async () => {
       if (!user) return;
-
       try {
         const balance = user.walletType === 'keplr' 
           ? await getKeplrBalance() 
-          : await getNobleBalance();
+          : await getNobleBalance(user.address);
         setBalance(balance);
       } catch (error) {
         console.error('Erro ao buscar saldo:', error);
@@ -70,36 +139,8 @@ export const Wallet = () => {
         });
       }
     };
-
     fetchBalance();
   }, [user, getKeplrBalance, getNobleBalance, toast]);
-
-  const handleConnect = async (walletType: 'keplr' | 'noble') => {
-    try {
-      if (walletType === 'keplr') {
-        await connectKeplr();
-      } else {
-        await connectNoble();
-      }
-      
-      toast({
-        title: 'Conectado',
-        description: `Carteira ${walletType === 'keplr' ? 'Keplr' : 'Noble'} conectada com sucesso!`,
-        status: 'success',
-        duration: 5000,
-        isClosable: true,
-      });
-    } catch (error) {
-      console.error(`Erro ao conectar com ${walletType}:`, error);
-      toast({
-        title: 'Erro',
-        description: `Falha ao conectar com a carteira ${walletType}`,
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-    }
-  };
 
   const handleDisconnect = async () => {
     try {
@@ -145,6 +186,7 @@ export const Wallet = () => {
     
     try {
       // Obtém o offline signer
+      if (!window.keplr) throw new Error('Keplr não está instalado');
       const offlineSigner = window.keplr.getOfflineSigner('cosmoshub-4');
       const accounts = await offlineSigner.getAccounts();
       
@@ -208,7 +250,7 @@ export const Wallet = () => {
   return (
     <Box p={6}>
       <Flex mb={6} align="center">
-        <Heading size="lg">Conectar Carteira</Heading>
+        <Heading size="lg">Minha Carteira</Heading>
         <Spacer />
         {user && (
           <Button colorScheme="red" onClick={handleDisconnect}>
@@ -216,35 +258,45 @@ export const Wallet = () => {
           </Button>
         )}
       </Flex>
+      {/* Painel de status do login */}
+      <Card variant="outline" mb={6}>
+        <CardHeader>
+          <Heading size="sm">Status do Login</Heading>
+        </CardHeader>
+        <CardBody>
+          <VStack align="start" spacing={2}>
+            <Text><b>Etapa atual:</b> {loginStep}</Text>
+            {loginError && (
+              <Alert status="error">
+                <AlertIcon />
+                <AlertTitle>Erro:</AlertTitle>
+                <AlertDescription>{loginError}</AlertDescription>
+              </Alert>
+            )}
+            <Box w="100%">
+              <Text fontWeight="bold" mb={1}>Log de etapas:</Text>
+              <Box as="pre" bg="gray.50" p={2} borderRadius="md" maxH="200px" overflowY="auto">
+                {statusLog.map((msg, idx) => <div key={idx}>{msg}</div>)}
+              </Box>
+            </Box>
+            <ButtonGroup mt={2}>
+              <Button colorScheme="purple" onClick={() => handleLoginVisual('keplr')}>Login com Keplr</Button>
+              <Button colorScheme="blue" onClick={() => handleLoginVisual('noble')}>Login com Noble</Button>
+            </ButtonGroup>
+          </VStack>
+        </CardBody>
+      </Card>
       
       {!user ? (
         <Card variant="outline">
           <CardHeader>
-            <Heading size="md">Escolha sua Carteira</Heading>
+            <Heading size="md">Carteira</Heading>
           </CardHeader>
           <CardBody>
             <VStack spacing={4} align="stretch">
               <Text>
-                Conecte-se usando uma das carteiras disponíveis:
+                Conecte-se usando o botão "Iniciar Sessão" no menu lateral.
               </Text>
-              <ButtonGroup spacing={4}>
-                <Button
-                  colorScheme="purple"
-                  size="lg"
-                  onClick={() => handleConnect('keplr')}
-                  width="200px"
-                >
-                  Conectar Keplr
-                </Button>
-                <Button
-                  colorScheme="blue"
-                  size="lg"
-                  onClick={() => handleConnect('noble')}
-                  width="200px"
-                >
-                  Conectar Noble
-                </Button>
-              </ButtonGroup>
             </VStack>
           </CardBody>
         </Card>

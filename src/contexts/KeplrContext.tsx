@@ -2,15 +2,15 @@ import { createContext, useContext, ReactNode } from 'react';
 import { useKeplr } from '../hooks/useKeplr';
 
 interface KeplrContextType {
-  connect: () => Promise<void>;
-  disconnect: () => void;
+  connect: () => Promise<boolean>;
+  disconnect: () => Promise<boolean>;
   walletAddress: string | null;
   walletName: string | null;
   error: string | null;
   isConnected: boolean;
 }
 
-const KeplrContext = createContext<KeplrContextType | null>(null);
+const KeplrContext = createContext<KeplrContextType | undefined>(undefined);
 
 export const KeplrProvider = ({ children }: { children: ReactNode }) => {
   const keplr = useKeplr();
@@ -24,7 +24,7 @@ export const KeplrProvider = ({ children }: { children: ReactNode }) => {
 
 export const useKeplrContext = () => {
   const context = useContext(KeplrContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useKeplrContext deve ser usado dentro de um KeplrProvider');
   }
   return context;

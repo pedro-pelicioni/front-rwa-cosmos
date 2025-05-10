@@ -7,47 +7,58 @@ interface User {
 }
 
 interface AuthResponse {
+  token: string;
   user: User;
 }
 
+interface NonceResponse {
+  nonce: string;
+}
+
 export const authService = {
-  async loginWithWallet(address: string): Promise<AuthResponse> {
+  async getNonce(address: string): Promise<string> {
     try {
-      console.log('Tentando fazer login com endereço:', address);
-      
-      // Verifica se o endereço está no formato correto
-      if (!address || typeof address !== 'string') {
-        throw new Error('Endereço da carteira inválido');
-      }
-      
-      // Remove espaços em branco e converte para minúsculas
-      const formattedAddress = address.trim().toLowerCase();
-      
-      // Verifica se o endereço começa com 'cosmos' ou 'neutron'
-      if (!formattedAddress.startsWith('cosmos') && !formattedAddress.startsWith('neutron')) {
-        throw new Error('Endereço da carteira deve começar com "cosmos" ou "neutron"');
-      }
-      
-      // Verifica o comprimento do endereço (deve ter pelo menos 39 caracteres)
-      if (formattedAddress.length < 39) {
-        throw new Error('Endereço da carteira muito curto');
-      }
-      
-      console.log('Endereço formatado:', formattedAddress);
-      
-      const response = await apiClient.post<AuthResponse>('/api/auth/wallet-login', {
-        address: formattedAddress,
+      const response = await apiClient.get<NonceResponse>('/api/auth/nonce', {
+        params: { address }
       });
-      
-      console.log('Resposta do servidor:', response.data);
+      return response.data.nonce;
+    } catch (error: any) {
+      console.error('Erro ao obter nonce:', error);
+      throw new Error(error.response?.data?.message || 'Erro ao obter nonce');
+      }
+  },
+
+  async loginWithWallet(address: string, signature: string, nonce: string): Promise<AuthResponse> {
+    try {
+      const payload = { address, signature, nonce };
+      console.log('[authService] Enviando para /api/auth/wallet-login:', payload);
+      const response = await apiClient.post<AuthResponse>('/api/auth/wallet-login', payload);
+      this.setToken(response.data.token);
       return response.data;
     } catch (error: any) {
-      console.error('Erro detalhado na autenticação:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-      });
-      throw error;
+      console.error('[authService] Erro na autenticação:', error);
+      if (error.response) {
+        console.error('[authService] Resposta do backend:', error.response.data);
+      }
+      throw new Error(error.response?.data?.message || 'Erro ao autenticar. Detalhes no console.');
     }
   },
+
+  logout() {
+    localStorage.removeItem('auth_token');
+    delete apiClient.defaults.headers.common['Authorization'];
+  },
+
+  getToken(): string | null {
+    return localStorage.getItem('auth_token');
+  },
+
+  setToken(token: string) {
+    localStorage.setItem('auth_token', token);
+    apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  },
+
+  isAuthenticated(): boolean {
+    return !!this.getToken();
+  }
 }; 

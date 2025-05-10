@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { useAuth } from './useAuth';
 import { OfflineDirectSigner } from '@cosmjs/proto-signing';
+import { authService } from '../services/auth';
 
 interface KeplrWindow {
   keplr?: {
     enable: (chainId: string) => Promise<void>;
     getOfflineSigner: (chainId: string) => OfflineDirectSigner;
     disable: (chainId: string) => Promise<void>;
+    signAmino: (chainId: string, signer: string, signDoc: any) => Promise<{ signature: any }>;
   };
 }
 
@@ -15,57 +16,112 @@ declare global {
 }
 
 export const useNoble = () => {
-  const { user, setUser } = useAuth();
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const signMessage = async (message: string, address: string): Promise<string> => {
+    if (!window.keplr) {
+      throw new Error('Keplr não está instalado');
+    }
+
+    try {
+      console.log('[Noble] Iniciando assinatura do nonce:', message);
+      
+      // Garante que a mensagem está em UTF-8
+      const messageBytes = new TextEncoder().encode(message);
+      const base64Message = btoa(String.fromCharCode(...messageBytes));
+      
+      console.log('[Noble] Mensagem em base64:', base64Message);
+
+      const signDoc = {
+        chain_id: '',
+        account_number: '0',
+        sequence: '0',
+        fee: {
+          amount: [],
+          gas: '0',
+        },
+        msgs: [
+          {
+            type: 'sign/MsgSignData',
+            value: {
+              signer: address,
+              data: base64Message,
+            },
+          },
+        ],
+        memo: '',
+      };
+
+      console.log('[Noble] Documento de assinatura:', signDoc);
+
+      const { signature } = await window.keplr.signAmino(
+        'noble-1',
+        address,
+        signDoc
+      );
+
+      console.log('[Noble] Assinatura gerada:', signature);
+      return JSON.stringify(signature);
+    } catch (err) {
+      console.error('[Noble] Erro ao assinar mensagem:', err);
+      throw new Error('Falha ao assinar mensagem: ' + (err instanceof Error ? err.message : String(err)));
+    }
+  };
 
   const connect = async () => {
     if (!window.keplr) {
       setError('Keplr não está instalado');
-      return;
+      console.error('[Noble] Keplr não está instalado');
+      return null;
     }
 
     setIsConnecting(true);
     setError(null);
+    console.log('[Noble] Iniciando conexão...');
 
     try {
-      // Força a desconexão antes de conectar novamente
-      if (user) {
-        await disconnect();
-      }
-
-      // Solicitar permissão para acessar a carteira
       await window.keplr.enable('noble-1');
+      console.log('[Noble] Permissão concedida pela extensão.');
 
-      // Obter o endereço da carteira
       const offlineSigner = window.keplr.getOfflineSigner('noble-1');
       const accounts = await offlineSigner.getAccounts();
+      console.log('[Noble] Contas obtidas:', accounts);
 
       if (accounts && accounts.length > 0) {
-        setUser({
-          address: accounts[0].address,
-          walletType: 'noble',
-          isConnected: true
-        });
-        return true;
+        const address = accounts[0].address;
+        console.log('[Noble] Endereço da carteira:', address);
+        
+        const nonce = await authService.getNonce(address);
+        console.log('[Noble] Nonce recebido do backend:', nonce);
+        
+        const signature = await signMessage(nonce, address);
+        console.log('[Noble] Assinatura do nonce:', signature);
+        
+        const authResponse = await authService.loginWithWallet(address, signature, nonce);
+        console.log('[Noble] Resposta do backend após login:', authResponse);
+        
+        return authResponse;
       }
-      return false;
+      console.error('[Noble] Nenhuma conta encontrada.');
+      return null;
     } catch (err) {
-      console.error('Erro ao conectar com Noble Wallet:', err);
-      setError('Falha ao conectar com a carteira Noble');
-      return false;
+      console.error('[Noble] Erro ao conectar com Noble Wallet:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Falha ao conectar com a carteira Noble';
+      setError(errorMessage);
+      throw new Error(errorMessage);
     } finally {
       setIsConnecting(false);
+      console.log('[Noble] Fim do processo de conexão.');
     }
   };
 
   const disconnect = async () => {
     try {
       if (window.keplr) {
-        // Desabilita a conexão com a chain
         await window.keplr.disable('noble-1');
       }
-      setUser(null);
+      authService.logout();
       return true;
     } catch (err) {
       console.error('Erro ao desconectar Noble Wallet:', err);
@@ -74,11 +130,11 @@ export const useNoble = () => {
     }
   };
 
-  const getBalance = async () => {
-    if (!user?.address) return null;
+  const getBalance = async (address: string) => {
+    if (!address) return null;
 
     try {
-      const response = await fetch('https://noble-api.polkachu.com/cosmos/bank/v1beta1/balances/' + user.address);
+      const response = await fetch('https://noble-api.polkachu.com/cosmos/bank/v1beta1/balances/' + address);
       const data = await response.json();
       
       if (data.balances && data.balances.length > 0) {

@@ -1,0 +1,47 @@
+<svg width="350" height="350" viewBox="0 0 350 350" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Grid Background -->
+  <rect width="350" height="350" fill="#002D5B" />
+  <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+    <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(255, 255, 255, 0.1)" stroke-width="1" />
+  </pattern>
+  <rect width="350" height="350" fill="url(#grid)" />
+  
+  <!-- Building Shapes -->
+  <rect x="95" y="80" width="160" height="200" rx="5" fill="#003B75" stroke="rgba(255, 255, 255, 0.2)" stroke-width="2" />
+  
+  <!-- Windows -->
+  <rect x="115" y="110" width="20" height="25" rx="2" fill="rgba(255, 255, 255, 0.2)" />
+  <rect x="145" y="110" width="20" height="25" rx="2" fill="rgba(255, 255, 255, 0.2)" />
+  <rect x="175" y="110" width="20" height="25" rx="2" fill="rgba(255, 255, 255, 0.2)" />
+  <rect x="205" y="110" width="20" height="25" rx="2" fill="rgba(255, 255, 255, 0.2)" />
+  
+  <rect x="115" y="145" width="20" height="25" rx="2" fill="rgba(255, 255, 255, 0.2)" />
+  <rect x="145" y="145" width="20" height="25" rx="2" fill="rgba(255, 255, 255, 0.2)" />
+  <rect x="175" y="145" width="20" height="25" rx="2" fill="rgba(255, 255, 255, 0.2)" />
+  <rect x="205" y="145" width="20" height="25" rx="2" fill="rgba(255, 255, 255, 0.2)" />
+  
+  <rect x="115" y="180" width="20" height="25" rx="2" fill="rgba(255, 255, 255, 0.2)" />
+  <rect x="145" y="180" width="20" height="25" rx="2" fill="rgba(255, 255, 255, 0.2)" />
+  <rect x="175" y="180" width="20" height="25" rx="2" fill="rgba(255, 255, 255, 0.2)" />
+  <rect x="205" y="180" width="20" height="25" rx="2" fill="rgba(255, 255, 255, 0.2)" />
+  
+  <rect x="145" y="230" width="60" height="50" rx="2" fill="rgba(255, 255, 255, 0.3)" />
+  
+  <!-- Latin America Map Shape -->
+  <path d="M210 140 C220 130 215 115 205 110 C195 105 190 120 185 125 C175 135 170 160 175 170 C180 180 195 175 200 165 C205 155 200 150 210 140Z" fill="#F47B20" opacity="0.8" />
+  
+  <!-- Decorative Elements -->
+  <circle cx="265" cy="95" r="30" fill="#F47B20" opacity="0.5" />
+  <polygon points="70,190 100,150 130,190" fill="#F47B20" opacity="0.3" stroke="white" stroke-width="1" />
+  
+  <!-- Blockchain Representation -->
+  <circle cx="240" cy="220" r="35" fill="none" stroke="#FFFFFF" stroke-width="2" opacity="0.5" />
+  <circle cx="215" cy="250" r="15" fill="none" stroke="#FFFFFF" stroke-width="2" opacity="0.5" />
+  <circle cx="270" cy="250" r="15" fill="none" stroke="#FFFFFF" stroke-width="2" opacity="0.5" />
+  <line x1="240" y1="220" x2="215" y2="250" stroke="#FFFFFF" stroke-width="2" opacity="0.5" />
+  <line x1="240" y1="220" x2="270" y2="250" stroke="#FFFFFF" stroke-width="2" opacity="0.5" />
+  <line x1="215" y1="250" x2="270" y2="250" stroke="#FFFFFF" stroke-width="2" opacity="0.5" />
+  
+  <!-- Dollar Sign -->
+  <text x="135" y="85" fill="#F47B20" font-family="Arial" font-size="28" font-weight="bold">$</text>
+</svg> 

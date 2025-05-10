@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useAuth } from './useAuth';
 import { SigningCosmWasmClient } from '@cosmjs/cosmwasm-stargate';
 import { OfflineDirectSigner } from '@cosmjs/proto-signing';
+import { authService } from '../services/auth';
 
 interface KeplrWindow {
   keplr?: {
@@ -9,6 +9,7 @@ interface KeplrWindow {
     getOfflineSigner: (chainId: string) => OfflineDirectSigner;
     disable: (chainId: string) => Promise<void>;
     experimentalSuggestChain: (chainInfo: any) => Promise<void>;
+    signAmino: (chainId: string, signer: string, signDoc: any) => Promise<{ signature: any }>;
   };
 }
 
@@ -19,95 +20,126 @@ declare global {
 const RPC_ENDPOINT = 'https://cosmos-rpc.polkachu.com';
 
 export const useKeplr = () => {
-  const { user, setUser } = useAuth();
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [walletName, setWalletName] = useState<string | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+
+  const signMessage = async (message: string, address: string): Promise<string> => {
+    if (!window.keplr) {
+      throw new Error('Keplr não está instalado');
+    }
+
+    try {
+      console.log('[Keplr] Iniciando assinatura do nonce:', message);
+      
+      // Garante que a mensagem está em UTF-8
+      const messageBytes = new TextEncoder().encode(message);
+      const base64Message = btoa(String.fromCharCode(...messageBytes));
+      
+      console.log('[Keplr] Mensagem em base64:', base64Message);
+
+      const signDoc = {
+        chain_id: '', // ADR-36 requer chain_id vazio
+        account_number: '0',
+        sequence: '0',
+        fee: {
+          amount: [], // ADR-36 exige array vazio
+          gas: '0',
+        },
+        msgs: [
+          {
+            type: 'sign/MsgSignData',
+            value: {
+              signer: address,
+              data: base64Message,
+            },
+          },
+        ],
+        memo: '',
+      };
+
+      console.log('[Keplr] Documento de assinatura:', signDoc);
+
+      const { signature } = await window.keplr.signAmino(
+        'cosmoshub-4', // chain_id para a carteira
+        address,
+        signDoc
+      );
+
+      console.log('[Keplr] Assinatura gerada:', signature);
+      return JSON.stringify(signature);
+    } catch (err) {
+      console.error('[Keplr] Erro ao assinar mensagem:', err);
+      throw new Error('Falha ao assinar mensagem: ' + (err instanceof Error ? err.message : String(err)));
+    }
+  };
 
   const connect = async () => {
     if (!window.keplr) {
       setError('Keplr não está instalado');
-      return;
+      console.error('[Keplr] Keplr não está instalado');
+      return null;
     }
 
     setIsConnecting(true);
     setError(null);
+    console.log('[Keplr] Iniciando conexão...');
 
     try {
-      // Força a desconexão antes de conectar novamente
-      if (user) {
+      if (isConnected) {
+        console.log('[Keplr] Já estava conectado, desconectando antes...');
         await disconnect();
       }
 
-      // Força a solicitação de permissão da extensão
       await window.keplr.enable('cosmoshub-4');
+      console.log('[Keplr] Permissão concedida pela extensão.');
 
-      // Obter o endereço da carteira
       const offlineSigner = window.keplr.getOfflineSigner('cosmoshub-4');
       const accounts = await offlineSigner.getAccounts();
+      console.log('[Keplr] Contas obtidas:', accounts);
 
       if (accounts && accounts.length > 0) {
-        setUser({
-          address: accounts[0].address,
-          walletType: 'keplr',
-          isConnected: true
-        });
-        return true; // Indica que a conexão foi bem sucedida
+        const address = accounts[0].address;
+        setWalletAddress(address);
+        setWalletName(null);
+        console.log('[Keplr] Endereço da carteira:', address);
+        
+        const nonce = await authService.getNonce(address);
+        console.log('[Keplr] Nonce recebido do backend:', nonce);
+        
+        const signature = await signMessage(nonce, address);
+        console.log('[Keplr] Assinatura do nonce:', signature);
+        
+        const authResponse = await authService.loginWithWallet(address, signature, nonce);
+        console.log('[Keplr] Resposta do backend após login:', authResponse);
+        
+        setIsConnected(true);
+        return authResponse;
       }
-      return false;
+      console.error('[Keplr] Nenhuma conta encontrada.');
+      return null;
     } catch (err) {
-      console.error('Erro ao conectar com Keplr:', err);
-      setError('Falha ao conectar com a carteira Keplr');
-      return false;
+      console.error('[Keplr] Erro ao conectar com Keplr:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Falha ao conectar com a carteira Keplr';
+      setError(errorMessage);
+      throw new Error(errorMessage);
     } finally {
       setIsConnecting(false);
+      console.log('[Keplr] Fim do processo de conexão.');
     }
   };
 
   const disconnect = async () => {
     try {
       if (window.keplr) {
-        // Desabilita a conexão com a chain
         await window.keplr.disable('cosmoshub-4');
-        // Limpa o cache da carteira
-        await window.keplr.experimentalSuggestChain({
-          chainId: 'cosmoshub-4',
-          chainName: 'Cosmos Hub',
-          rpc: RPC_ENDPOINT,
-          rest: 'https://cosmos-lcd.polkachu.com',
-          bip44: {
-            coinType: 118,
-          },
-          bech32Config: {
-            bech32PrefixAccAddr: 'cosmos',
-            bech32PrefixAccPub: 'cosmospub',
-            bech32PrefixValAddr: 'cosmosvaloper',
-            bech32PrefixValPub: 'cosmosvaloperpub',
-            bech32PrefixConsAddr: 'cosmosvalcons',
-            bech32PrefixConsPub: 'cosmosvalconspub',
-          },
-          currencies: [
-            {
-              coinDenom: 'ATOM',
-              coinMinimalDenom: 'uatom',
-              coinDecimals: 6,
-            },
-          ],
-          feeCurrencies: [
-            {
-              coinDenom: 'ATOM',
-              coinMinimalDenom: 'uatom',
-              coinDecimals: 6,
-            },
-          ],
-          stakeCurrency: {
-            coinDenom: 'ATOM',
-            coinMinimalDenom: 'uatom',
-            coinDecimals: 6,
-          },
-          features: ['stargate', 'ibc-transfer', 'no-legacy-stdTx'],
-        });
       }
-      setUser(null);
+      authService.logout();
+      setWalletAddress(null);
+      setWalletName(null);
+      setIsConnected(false);
       return true;
     } catch (err) {
       console.error('Erro ao desconectar Keplr:', err);
@@ -117,14 +149,14 @@ export const useKeplr = () => {
   };
 
   const getBalance = async () => {
-    if (!user?.address) return '0';
+    if (!walletAddress) return '0';
 
     try {
       const offlineSigner = window.keplr?.getOfflineSigner('cosmoshub-4');
       if (!offlineSigner) throw new Error('Keplr não está disponível');
 
       const client = await SigningCosmWasmClient.connectWithSigner(RPC_ENDPOINT, offlineSigner);
-      const balance = await client.getBalance(user.address, 'uatom');
+      const balance = await client.getBalance(walletAddress, 'uatom');
       
       return balance.amount;
     } catch (err) {
@@ -138,6 +170,9 @@ export const useKeplr = () => {
     error,
     connect,
     disconnect,
-    getBalance
+    getBalance,
+    walletAddress,
+    walletName,
+    isConnected
   };
 }; 

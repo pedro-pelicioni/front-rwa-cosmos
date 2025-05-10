@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { authService } from '../services/auth';
 
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000',
@@ -16,6 +17,11 @@ apiClient.interceptors.request.use(
       if (config.url === '/api/auth/wallet-login' && config.data.address) {
         config.data.address = config.data.address.trim().toLowerCase();
       }
+    }
+    
+    const token = authService.getToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
     
     console.log('Requisição sendo enviada:', {
@@ -52,6 +58,10 @@ apiClient.interceptors.response.use(
         data: error.config?.data,
       },
     });
+    if (error.response?.status === 401) {
+      // Token expirado ou inválido
+      authService.logout();
+    }
     return Promise.reject(error);
   }
 ); 
