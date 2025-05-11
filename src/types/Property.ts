@@ -13,8 +13,11 @@ export interface Property {
     yearBuilt?: number;
     squareMeters?: number;
     tokenPrice?: number;
+    gpsCoordinates?: string;
   };
   owner: string;
   createdAt: string;
   updatedAt: string;
+  status?: 'active' | 'inactive' | 'sold' | 'pending';
+  facilities?: any[];
 } 

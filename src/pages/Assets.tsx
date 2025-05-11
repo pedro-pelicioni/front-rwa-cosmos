@@ -1,13 +1,29 @@
-import { useState } from 'react';
-import { Box, Container, Heading, Text, SimpleGrid, Button, Flex, Image, Badge, HStack, VStack, Divider, useColorModeValue, Input, InputGroup, InputLeftElement } from '@chakra-ui/react';
+import { useState, useEffect } from 'react';
+import { Box, Container, Heading, Text, SimpleGrid, Button, Flex, Image, Badge, HStack, VStack, Divider, useColorModeValue, Input, InputGroup, InputLeftElement, Spinner, IconButton } from '@chakra-ui/react';
 import { Link as RouterLink } from 'react-router-dom';
-import { FaSearch, FaSort, FaFilter } from 'react-icons/fa';
-import { properties } from '../data/properties';
+import { FaSearch, FaSort, FaFilter, FaEdit } from 'react-icons/fa';
 import { useAuth } from '../hooks/useAuth';
+import { useProperty } from '../hooks/useProperty';
+import { Property } from '../types/Property';
 
 export const Assets = () => {
   const { user } = useAuth();
+  const { getAll, loading, error } = useProperty();
   const [searchTerm, setSearchTerm] = useState('');
+  const [properties, setProperties] = useState<Property[]>([]);
+  
+  useEffect(() => {
+    const fetchProperties = async () => {
+      try {
+        const data = await getAll();
+        setProperties(data);
+      } catch (err) {
+        console.error('Erro ao buscar propriedades:', err);
+      }
+    };
+    
+    fetchProperties();
+  }, [getAll]);
   
   const filteredProperties = properties.filter(property => 
     property.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -72,7 +88,17 @@ export const Assets = () => {
         </HStack>
       </Flex>
       
-      {filteredProperties.length === 0 ? (
+      {loading ? (
+        <Box textAlign="center" p={8}>
+          <Spinner size="xl" color="accent.500" />
+          <Text mt={4}>Carregando propriedades...</Text>
+        </Box>
+      ) : error ? (
+        <Box textAlign="center" p={8} color="red.500">
+          <Text>Erro ao carregar propriedades: {error}</Text>
+          <Button mt={4} onClick={() => getAll()}>Tentar novamente</Button>
+        </Box>
+      ) : filteredProperties.length === 0 ? (
         <Box 
           textAlign="center" 
           p={8} 
@@ -104,7 +130,7 @@ export const Assets = () => {
             >
               <Box height="220px" position="relative" overflow="hidden">
                 <Image 
-                  src={property.metadata.images[0]} 
+                  src={property.metadata.images[0] || 'https://via.placeholder.com/400x300?text=No+Image'} 
                   alt={property.name}
                   objectFit="cover"
                   width="100%"
@@ -144,14 +170,27 @@ export const Assets = () => {
                     </Text>
                   </VStack>
                   
-                  <Button 
-                    as={RouterLink}
-                    to={`/assets/${property.id}`}
-                    variant="primary"
-                    size="sm"
-                  >
-                    View Details
-                  </Button>
+                  <HStack spacing={2}>
+                    {user?.id && property.owner && user.id.toString() === property.owner.toString() && (
+                      <IconButton
+                        as={RouterLink}
+                        to={`/assets/${property.id}/edit`}
+                        aria-label="Edit property"
+                        icon={<FaEdit />}
+                        size="sm"
+                        colorScheme="orange"
+                        variant="outline"
+                      />
+                    )}
+                    <Button 
+                      as={RouterLink}
+                      to={`/assets/${property.id}`}
+                      variant="primary"
+                      size="sm"
+                    >
+                      View Details
+                    </Button>
+                  </HStack>
                 </Flex>
               </Box>
             </Box>

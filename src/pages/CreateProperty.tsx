@@ -30,16 +30,28 @@ import {
   ModalHeader,
   ModalFooter,
   ModalBody,
-  ModalCloseButton
+  ModalCloseButton,
+  Spinner,
+  Alert,
+  AlertIcon,
+  AlertTitle,
+  AlertDescription,
+  CloseButton
 } from '@chakra-ui/react';
 import { FaDollarSign, FaPlus } from 'react-icons/fa';
 import { useAuth } from '../hooks/useAuth';
+import { useProperty } from '../hooks/useProperty';
 
 export const CreateProperty = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const { user } = useAuth();
+  const { create, loading, error } = useProperty();
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const [formError, setFormError] = useState<string | null>(null);
+  
+  // Adiciona estado para campos com erro
+  const [fieldErrors, setFieldErrors] = useState<{[key: string]: boolean}>({});
   
   const [formData, setFormData] = useState({
     name: '',
@@ -52,6 +64,7 @@ export const CreateProperty = () => {
     amenities: [] as string[],
     yearBuilt: '',
     squareMeters: '',
+    gpsCoordinates: '',
   });
   
   const [newImage, setNewImage] = useState('');
@@ -61,10 +74,18 @@ export const CreateProperty = () => {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    // Limpa o erro quando o usuário começa a editar
+    setFormError(null);
+    // Limpa o erro do campo específico
+    setFieldErrors(prev => ({ ...prev, [name]: false }));
   };
   
   const handleNumberInputChange = (name: string, value: string) => {
     setFormData(prev => ({ ...prev, [name]: value }));
+    // Limpa o erro quando o usuário começa a editar
+    setFormError(null);
+    // Limpa o erro do campo específico
+    setFieldErrors(prev => ({ ...prev, [name]: false }));
   };
   
   const addImage = () => {
@@ -109,14 +130,47 @@ export const CreateProperty = () => {
     }));
   };
   
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
+    setFieldErrors({});
     
     // Basic validation
-    if (!formData.name || !formData.location || !formData.price || !formData.totalTokens) {
+    const newFieldErrors: {[key: string]: boolean} = {};
+    let hasErrors = false;
+    
+    if (!formData.name) {
+      newFieldErrors.name = true;
+      hasErrors = true;
+    }
+    
+    // Validar formato da localização
+    if (!formData.location) {
+      newFieldErrors.location = true;
+      hasErrors = true;
+    } 
+    
+    if (!formData.gpsCoordinates) {
+      newFieldErrors.gpsCoordinates = true;
+      hasErrors = true;
+    }
+    
+    if (!formData.price) {
+      newFieldErrors.price = true;
+      hasErrors = true;
+    }
+    
+    if (!formData.totalTokens) {
+      newFieldErrors.totalTokens = true;
+      hasErrors = true;
+    }
+    
+    if (hasErrors) {
+      setFieldErrors(newFieldErrors);
+      setFormError("Preencha todos os campos obrigatórios");
       toast({
-        title: "Missing Information",
-        description: "Please fill all required fields",
+        title: "Campos incompletos",
+        description: "Preencha todos os campos obrigatórios (Nome, Localização, Coordenadas GPS, Valor e Total de Tokens)",
         status: "error",
         duration: 3000,
         isClosable: true
@@ -124,19 +178,83 @@ export const CreateProperty = () => {
       return;
     }
     
-    // In a real application, this would send data to the backend
-    // For now, we'll just show a success message and navigate back
-    toast({
-      title: "Property Created",
-      description: `Property "${formData.name}" has been created successfully`,
-      status: "success",
-      duration: 5000,
-      isClosable: true
-    });
-    
-    setTimeout(() => {
+    try {
+      await create({
+        name: formData.name,
+        description: formData.description,
+        location: formData.location,
+        price: parseFloat(formData.price),
+        totalTokens: parseInt(formData.totalTokens),
+        availableTokens: parseInt(formData.totalTokens),
+        metadata: {
+          images: formData.images,
+          documents: formData.documents,
+          amenities: formData.amenities,
+          yearBuilt: formData.yearBuilt ? parseInt(formData.yearBuilt) : undefined,
+          squareMeters: formData.squareMeters ? parseFloat(formData.squareMeters) : undefined,
+          gpsCoordinates: formData.gpsCoordinates
+        },
+        owner: user?.address || '',
+        status: 'active'
+      });
+      
+      toast({
+        title: "Propriedade Criada",
+        description: `Propriedade "${formData.name}" foi criada com sucesso`,
+        status: "success",
+        duration: 5000,
+        isClosable: true
+      });
+      
       navigate('/assets');
-    }, 1000);
+    } catch (err: any) {
+      console.error('Error creating property:', err);
+      
+      // Captura o erro específico da resposta ou do estado do hook
+      let errorMessage = "";
+      
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.response?.data?.error) {
+        errorMessage = err.response.data.error;
+      } else if (err.response?.data?.errors) {
+        // Processa erros em formato array ou objeto
+        if (Array.isArray(err.response.data.errors)) {
+          errorMessage = err.response.data.errors.join('; ');
+        } else if (typeof err.response.data.errors === 'object') {
+          errorMessage = Object.values(err.response.data.errors).flat().join('; ');
+        } else {
+          errorMessage = String(err.response.data.errors);
+        }
+      } else if (error) {
+        // Se não encontrar erro específico na resposta, usa o erro do hook
+        errorMessage = error;
+      } else {
+        errorMessage = "Ocorreu um erro ao criar a propriedade";
+      }
+      
+      // Destaca campos específicos baseado na mensagem de erro
+      const newFieldErrors: {[key: string]: boolean} = {};
+      const errorLower = errorMessage.toLowerCase();
+      
+      if (errorLower.includes('nome') || errorLower.includes('name')) newFieldErrors.name = true;
+      if (errorLower.includes('coordenadas') || errorLower.includes('gps')) newFieldErrors.gpsCoordinates = true;
+      if (errorLower.includes('localização') || errorLower.includes('location') || 
+          errorLower.includes('cidade') || errorLower.includes('país') || 
+          errorLower.includes('city') || errorLower.includes('country')) newFieldErrors.location = true;
+      if (errorLower.includes('preço') || errorLower.includes('valor') || errorLower.includes('price')) newFieldErrors.price = true;
+      if (errorLower.includes('tokens')) newFieldErrors.totalTokens = true;
+      
+      setFieldErrors(newFieldErrors);
+      setFormError(errorMessage);
+      toast({
+        title: "Erro",
+        description: errorMessage,
+        status: "error",
+        duration: 5000,
+        isClosable: true
+      });
+    }
   };
 
   if (!user?.isConnected) {
@@ -161,11 +279,19 @@ export const CreateProperty = () => {
           <Text color="text.dim">List a new tokenized real estate property for investment</Text>
         </Box>
         
+        {formError && (
+          <Alert status="error" variant="solid" borderRadius="md">
+            <AlertIcon />
+            <AlertDescription>{formError}</AlertDescription>
+            <CloseButton position="absolute" right="8px" top="8px" onClick={() => setFormError(null)} />
+          </Alert>
+        )}
+        
         <Divider borderColor="bgGrid" />
         
         <Heading size="md">Basic Information</Heading>
         
-        <FormControl isRequired>
+        <FormControl isRequired isInvalid={!!fieldErrors.name}>
           <FormLabel>Property Name</FormLabel>
           <Input 
             name="name"
@@ -173,11 +299,11 @@ export const CreateProperty = () => {
             onChange={handleInputChange}
             bg="rgba(255,255,255,0.05)"
             border="1px solid"
-            borderColor="bgGrid"
+            borderColor={fieldErrors.name ? "red.500" : "bgGrid"}
           />
         </FormControl>
         
-        <FormControl isRequired>
+        <FormControl isRequired isInvalid={!!fieldErrors.location}>
           <FormLabel>Location</FormLabel>
           <Input 
             name="location"
@@ -186,7 +312,23 @@ export const CreateProperty = () => {
             placeholder="City, Country"
             bg="rgba(255,255,255,0.05)"
             border="1px solid"
-            borderColor="bgGrid"
+            borderColor={fieldErrors.location ? "red.500" : "bgGrid"}
+          />
+          <FormHelperText color={fieldErrors.location ? "red.300" : "text.dim"}>
+            Formato obrigatório: Cidade, País (ex: São Paulo, Brasil)
+          </FormHelperText>
+        </FormControl>
+        
+        <FormControl isInvalid={!!fieldErrors.gpsCoordinates}>
+          <FormLabel>GPS Coordinates</FormLabel>
+          <Input 
+            name="gpsCoordinates"
+            value={formData.gpsCoordinates}
+            onChange={handleInputChange}
+            placeholder="e.g., -23.5505, -46.6333"
+            bg="rgba(255,255,255,0.05)"
+            border="1px solid"
+            borderColor={fieldErrors.gpsCoordinates ? "red.500" : "bgGrid"}
           />
         </FormControl>
         
@@ -205,7 +347,7 @@ export const CreateProperty = () => {
         </FormControl>
         
         <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-          <FormControl isRequired>
+          <FormControl isRequired isInvalid={!!fieldErrors.price}>
             <FormLabel>Property Value</FormLabel>
             <InputGroup>
               <InputLeftElement pointerEvents="none">
@@ -222,13 +364,13 @@ export const CreateProperty = () => {
                   pl={8}
                   bg="rgba(255,255,255,0.05)"
                   border="1px solid"
-                  borderColor="bgGrid"
+                  borderColor={fieldErrors.price ? "red.500" : "bgGrid"}
                 />
               </NumberInput>
             </InputGroup>
           </FormControl>
           
-          <FormControl isRequired>
+          <FormControl isRequired isInvalid={!!fieldErrors.totalTokens}>
             <FormLabel>Total Tokens</FormLabel>
             <NumberInput 
               min={1} 
@@ -238,7 +380,7 @@ export const CreateProperty = () => {
               <NumberInputField 
                 bg="rgba(255,255,255,0.05)"
                 border="1px solid"
-                borderColor="bgGrid"
+                borderColor={fieldErrors.totalTokens ? "red.500" : "bgGrid"}
               />
             </NumberInput>
             <FormHelperText>Number of tokens to divide the property into</FormHelperText>
@@ -283,7 +425,7 @@ export const CreateProperty = () => {
         <Heading size="md">Media & Documents</Heading>
         
         <FormControl>
-          <FormLabel>Property Images (URLs)</FormLabel>
+          <FormLabel>Property Images</FormLabel>
           <HStack mb={2}>
             <Input 
               value={newImage}
@@ -303,7 +445,7 @@ export const CreateProperty = () => {
             </Button>
           </HStack>
           <HStack spacing={2} flexWrap="wrap">
-            {formData.images.map((img, index) => (
+            {formData.images.map((image, index) => (
               <Tag 
                 key={index}
                 size="lg" 
@@ -312,7 +454,7 @@ export const CreateProperty = () => {
                 bg="rgba(255,255,255,0.05)"
                 my={1}
               >
-                <TagLabel>{img.length > 30 ? img.substring(0, 30) + '...' : img}</TagLabel>
+                <TagLabel>{image.length > 30 ? `${image.substring(0, 30)}...` : image}</TagLabel>
                 <TagCloseButton onClick={() => removeImage(index)} />
               </Tag>
             ))}
@@ -357,7 +499,7 @@ export const CreateProperty = () => {
         </FormControl>
         
         <FormControl>
-          <FormLabel>Property Amenities</FormLabel>
+          <FormLabel>Amenities</FormLabel>
           <HStack mb={2}>
             <Input 
               value={newAmenity}
@@ -393,9 +535,9 @@ export const CreateProperty = () => {
           </HStack>
         </FormControl>
         
-        <Divider borderColor="bgGrid" />
+        <Divider borderColor="bgGrid" my={4} />
         
-        <HStack spacing={4} justify="flex-end">
+        <HStack justifyContent="space-between">
           <Button 
             variant="outline"
             onClick={() => navigate('/assets')}
@@ -403,8 +545,10 @@ export const CreateProperty = () => {
             Cancel
           </Button>
           <Button 
-            variant="primary"
             type="submit"
+            variant="primary"
+            isLoading={loading}
+            loadingText="Creating..."
           >
             Create Property
           </Button>

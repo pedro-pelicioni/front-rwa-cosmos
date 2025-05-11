@@ -8,6 +8,7 @@ import { Transactions } from './pages/Transactions'
 import { AssetDetails } from './pages/AssetDetails'
 import { Wallet } from './pages/Wallet'
 import { CreateProperty } from './pages/CreateProperty'
+import { EditProperty } from './pages/EditProperty'
 import { KeplrProvider } from './contexts/KeplrContext'
 import { AuthProvider } from './hooks/useAuth'
 import { Box, Text, VStack, Heading } from '@chakra-ui/react'
@@ -94,7 +95,7 @@ export default function App() {
                   <Route path="/create-property" element={<CreateProperty />} />
                   <Route path="/transactions" element={<Transactions />} />
                   <Route path="/assets/:id" element={<AssetDetails />} />
-                  <Route path="/assets/:id/edit" element={<CreateProperty />} />
+                  <Route path="/assets/:id/edit" element={<EditProperty />} />
                   <Route path="/wallet" element={<Wallet />} />
                   <Route path="/map" element={<Box p={8}><Heading>Map Page</Heading><Text>Coming soon!</Text></Box>} />
                   <Route path="/how-it-works" element={<Box p={8}><Heading>How It Works</Heading><Text>Coming soon!</Text></Box>} />

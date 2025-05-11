@@ -7,46 +7,93 @@ import {
   StatNumber, StatHelpText, useDisclosure, Modal, ModalOverlay, 
   ModalContent, ModalHeader, ModalBody, ModalCloseButton,
   ModalFooter, NumberInput, NumberInputField,
-  FormControl, FormLabel, useToast
+  FormControl, FormLabel, useToast, Spinner
 } from '@chakra-ui/react';
-import { FaMapMarkerAlt, FaCalendarAlt, FaBuilding, FaCoins, FaFileAlt, FaUserAlt } from 'react-icons/fa';
-import { properties } from '../data/properties';
+import { FaMapMarkerAlt, FaCalendarAlt, FaBuilding, FaCoins, FaFileAlt, FaUserAlt, FaEdit } from 'react-icons/fa';
 import { Property } from '../types/Property';
 import { useAuth } from '../hooks/useAuth';
+import { useProperty } from '../hooks/useProperty';
+import { imageService } from '../services/imageService';
+import { RWAImage } from '../types/rwa';
 
 export const AssetDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const toast = useToast();
   const { user } = useAuth();
+  const { getById, loading, error } = useProperty();
   const [property, setProperty] = useState<Property | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [tokensToInvest, setTokensToInvest] = useState(1);
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const [propertyImages, setPropertyImages] = useState<RWAImage[]>([]);
+  const [loadingImages, setLoadingImages] = useState(false);
 
   useEffect(() => {
-    const foundProperty = properties.find(p => p.id === id);
-    if (foundProperty) {
-      setProperty(foundProperty);
-    } else {
-      navigate('/assets');
-      toast({
-        title: "Property not found",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-    }
-  }, [id, navigate, toast]);
-
-  if (!property) {
-    return <Box p={8}>Loading property details...</Box>;
-  }
+    if (!id) return;
+    
+    const fetchProperty = async () => {
+      try {
+        const data = await getById(id);
+        setProperty(data);
+        
+        // Uma vez que temos a propriedade, buscamos as imagens
+        fetchPropertyImages(parseInt(id));
+      } catch (err) {
+        console.error('Erro ao buscar detalhes da propriedade:', err);
+        navigate('/assets');
+        toast({
+          title: "Property not found",
+          status: "error",
+          duration: 3000,
+          isClosable: true,
+        });
+      }
+    };
+    
+    const fetchPropertyImages = async (rwaId: number) => {
+      try {
+        setLoadingImages(true);
+        console.log('Buscando imagens para o RWA ID:', rwaId);
+        
+        const images = await imageService.getByRWAId(rwaId);
+        console.log('Imagens encontradas:', images);
+        
+        setPropertyImages(images);
+        
+        // Se encontrarmos imagens, atualizamos também o property.metadata.images
+        if (images.length > 0) {
+          setProperty(prev => {
+            if (!prev) return null;
+            
+            return {
+              ...prev,
+              metadata: {
+                ...prev.metadata,
+                images: images.map(img => {
+                  // Se a imagem tiver image_data (base64), usamos diretamente
+                  if (img.image_data) return img.image_data;
+                  // Caso contrário, tentamos file_path ou cid_link
+                  return img.file_path || img.cid_link || '';
+                })
+              }
+            };
+          });
+        }
+      } catch (err) {
+        console.error('Erro ao buscar imagens da propriedade:', err);
+      } finally {
+        setLoadingImages(false);
+      }
+    };
+    
+    fetchProperty();
+  }, [id, getById, navigate, toast]);
 
   const handleInvestment = () => {
     toast({
       title: "Investment Successful",
-      description: `You have successfully invested in ${tokensToInvest} tokens of ${property.name}`,
+      description: `You have successfully invested in ${tokensToInvest} tokens of ${property?.name}`,
       status: "success",
       duration: 5000,
       isClosable: true,
@@ -62,7 +109,38 @@ export const AssetDetails = () => {
     }).format(amount);
   };
 
-  const isOwner = user?.address === property.owner;
+  if (loading) {
+    return (
+      <Box p={8} textAlign="center">
+        <Spinner size="xl" color="accent.500" />
+        <Text mt={4}>Loading property details...</Text>
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box p={8} textAlign="center" color="red.500">
+        <Text>Error loading property: {error}</Text>
+        <Button mt={4} onClick={() => navigate('/assets')}>Back to Properties</Button>
+      </Box>
+    );
+  }
+
+  if (!property) {
+    return <Box p={8}>Property not found</Box>;
+  }
+
+  // Logs detalhados para depuração
+  console.log('Dados completos do usuário:', user);
+  console.log('ID do usuário:', user?.id);
+  console.log('ID do proprietário da propriedade:', property.owner);
+  
+  // Verifica se o usuário está autenticado e se os IDs correspondem
+  const isOwner = user && user.id && property.owner && 
+                 user.id.toString() === property.owner.toString();
+  
+  console.log('É proprietário?', isOwner);
 
   return (
     <Container maxW="container.xl" py={8}>
@@ -71,14 +149,26 @@ export const AssetDetails = () => {
         <GridItem>
           {/* Property Image Gallery */}
           <Box mb={6} position="relative" borderRadius="xl" overflow="hidden">
-            <Image 
-              src={property.metadata.images[activeImageIndex]} 
-              alt={property.name}
-              width="100%"
-              height="400px"
-              objectFit="cover"
-              borderRadius="xl"
-            />
+            {loadingImages ? (
+              <Flex 
+                width="100%" 
+                height="400px" 
+                justifyContent="center" 
+                alignItems="center"
+                bg="rgba(255,255,255,0.05)"
+              >
+                <Spinner size="xl" color="accent.500" />
+              </Flex>
+            ) : (
+              <Image 
+                src={property.metadata.images[activeImageIndex] || 'https://via.placeholder.com/800x400?text=No+Image'} 
+                alt={property.name}
+                width="100%"
+                height="400px"
+                objectFit="cover"
+                borderRadius="xl"
+              />
+            )}
             <Badge 
               position="absolute" 
               top={4} 
@@ -92,33 +182,52 @@ export const AssetDetails = () => {
             >
               ID: {property.id}
             </Badge>
+            
+            {isOwner && (
+              <Button
+                as={RouterLink}
+                to={`/assets/${property.id}/edit`}
+                position="absolute"
+                top={4}
+                left={4}
+                colorScheme="orange"
+                size="sm"
+                leftIcon={<FaEdit />}
+              >
+                Editar Propriedade
+              </Button>
+            )}
           </Box>
           
           {/* Thumbnail Gallery */}
           <Flex mb={8} gap={2} overflow="auto" pb={2}>
-            {property.metadata.images.map((img, idx) => (
-              <Box 
-                key={idx} 
-                width="80px" 
-                height="60px" 
-                borderRadius="md" 
-                overflow="hidden"
-                border="2px solid"
-                borderColor={activeImageIndex === idx ? "accent.500" : "transparent"}
-                cursor="pointer"
-                onClick={() => setActiveImageIndex(idx)}
-                transition="all 0.2s"
-                _hover={{ transform: 'scale(1.05)' }}
-              >
-                <Image 
-                  src={img} 
-                  alt={`${property.name} view ${idx + 1}`}
-                  width="100%"
-                  height="100%"
-                  objectFit="cover"
-                />
-              </Box>
-            ))}
+            {property.metadata.images.length > 0 ? (
+              property.metadata.images.map((img, idx) => (
+                <Box 
+                  key={idx} 
+                  width="80px" 
+                  height="60px" 
+                  borderRadius="md" 
+                  overflow="hidden"
+                  border="2px solid"
+                  borderColor={activeImageIndex === idx ? "accent.500" : "transparent"}
+                  cursor="pointer"
+                  onClick={() => setActiveImageIndex(idx)}
+                  transition="all 0.2s"
+                  _hover={{ transform: 'scale(1.05)' }}
+                >
+                  <Image 
+                    src={img || 'https://via.placeholder.com/80x60?text=No+Image'} 
+                    alt={`${property.name} view ${idx + 1}`}
+                    width="100%"
+                    height="100%"
+                    objectFit="cover"
+                  />
+                </Box>
+              ))
+            ) : (
+              <Text color="text.dim">No images available for this property</Text>
+            )}
           </Flex>
 
           {/* Property Details */}
@@ -161,7 +270,7 @@ export const AssetDetails = () => {
             <Tabs colorScheme="orange" variant="enclosed">
               <TabList>
                 <Tab>Amenities</Tab>
-                <Tab>Documents</Tab>
+                <Tab>Facilities</Tab>
                 <Tab>Owner Info</Tab>
               </TabList>
               
@@ -172,28 +281,39 @@ export const AssetDetails = () => {
                       <Tag key={idx} size="lg" bg="rgba(255,255,255,0.1)" color="text.light" borderRadius="full" py={2} px={4}>
                         {amenity}
                       </Tag>
-                    ))}
+                    )) || (
+                      <Text>No amenities information available</Text>
+                    )}
                   </SimpleGrid>
                 </TabPanel>
                 
                 <TabPanel>
                   <VStack align="stretch" spacing={3}>
-                    {property.metadata.documents.map((doc, idx) => (
-                      <Flex 
-                        key={idx}
-                        justify="space-between" 
-                        align="center" 
-                        p={3} 
-                        bg="rgba(255,255,255,0.05)" 
-                        borderRadius="md"
-                      >
-                        <HStack>
-                          <FaFileAlt />
-                          <Text>{doc}</Text>
-                        </HStack>
-                        <Button size="sm" variant="outline">View</Button>
-                      </Flex>
-                    ))}
+                    {property.facilities && property.facilities.length > 0 ? (
+                      property.facilities.map((facility, idx) => (
+                        <Flex 
+                          key={idx}
+                          justify="space-between" 
+                          align="center" 
+                          p={3} 
+                          bg="rgba(255,255,255,0.05)" 
+                          borderRadius="md"
+                        >
+                          <HStack>
+                            <FaBuilding />
+                            <Box>
+                              <Text fontWeight="bold">{facility.name}</Text>
+                              <Text fontSize="sm" color="text.dim">{facility.type} - {facility.size_m2 || "N/A"}m²</Text>
+                            </Box>
+                          </HStack>
+                          <Badge colorScheme={facility.status === 'active' ? 'green' : facility.status === 'inactive' ? 'gray' : 'orange'}>
+                            {facility.status}
+                          </Badge>
+                        </Flex>
+                      ))
+                    ) : (
+                      <Text>No facilities information available</Text>
+                    )}
                   </VStack>
                 </TabPanel>
                 
@@ -250,144 +370,99 @@ export const AssetDetails = () => {
             
             <Divider my={4} borderColor="bgGrid" />
             
-            <Box mb={6}>
-              <Flex justify="space-between" mb={2}>
-                <Text>Available Tokens</Text>
-                <Text>{property.availableTokens} / {property.totalTokens}</Text>
+            <VStack spacing={4} mb={6} align="stretch">
+              <Flex justify="space-between">
+                <Text>Total Tokens</Text>
+                <Text fontWeight="bold">{property.totalTokens}</Text>
               </Flex>
               
-              <Box 
-                w="100%" 
-                h="8px" 
-                bg="rgba(255,255,255,0.1)" 
-                borderRadius="full" 
-                overflow="hidden"
-              >
-                <Box 
-                  w={`${(property.availableTokens / property.totalTokens) * 100}%`} 
-                  h="100%" 
-                  bg="accent.500" 
-                  borderRadius="full"
-                />
-              </Box>
-            </Box>
-            
-            {user?.isConnected ? (
-              isOwner ? (
-                <VStack spacing={4} align="stretch">
-                  <Button 
-                    variant="primary" 
-                    size="lg" 
-                    width="100%"
-                    as={RouterLink}
-                    to={`/assets/${property.id}/edit`}
-                  >
-                    Edit Property
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="lg" 
-                    width="100%"
-                  >
-                    Add Fungible Tokens
-                  </Button>
-                </VStack>
-              ) : (
-                <VStack spacing={4} align="stretch">
-                  <Button 
-                    variant="primary" 
-                    size="lg" 
-                    width="100%"
-                    onClick={onOpen}
-                    isDisabled={property.availableTokens === 0}
-                  >
-                    Invest Now
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="lg" 
-                    width="100%"
-                  >
-                    Add to Watchlist
-                  </Button>
-                </VStack>
-              )
-            ) : (
-              <Button 
-                variant="primary" 
-                size="lg" 
-                width="100%"
-                as={RouterLink}
-                to="/wallet"
-              >
-                Connect Wallet to Invest
-              </Button>
-            )}
-            
-            <VStack spacing={4} mt={8} align="stretch">
-              <Heading size="sm">Property Documents</Heading>
-              {property.metadata.documents.slice(0, 2).map((doc, idx) => (
-                <Flex 
-                  key={idx}
-                  justify="space-between" 
-                  align="center" 
-                  p={3} 
-                  bg="rgba(255,255,255,0.03)" 
-                  borderRadius="md"
-                >
-                  <Text fontSize="sm">{doc}</Text>
-                  <Button size="xs" variant="ghost">View</Button>
-                </Flex>
-              ))}
+              <Flex justify="space-between">
+                <Text>Available Tokens</Text>
+                <Text fontWeight="bold">{property.availableTokens}</Text>
+              </Flex>
+              
+              <Flex justify="space-between">
+                <Text>Status</Text>
+                <Badge colorScheme={property.status === 'active' ? 'green' : property.status === 'inactive' ? 'gray' : 'red'}>
+                  {property.status || 'Unknown'}
+                </Badge>
+              </Flex>
             </VStack>
+            
+            <Button 
+              width="100%"
+              variant="primary"
+              size="lg"
+              onClick={onOpen}
+              isDisabled={!user?.isConnected || property.availableTokens === 0 || property.status !== 'active'}
+              mb={4}
+            >
+              Invest Now
+            </Button>
+            
+            <Text fontSize="sm" color="text.dim" textAlign="center">
+              {!user?.isConnected 
+                ? "Connect your wallet to invest" 
+                : property.availableTokens === 0 
+                ? "No tokens available for investment" 
+                : property.status !== 'active'
+                ? "This property is not active for investment"
+                : "Minimum investment: 1 token"}
+            </Text>
+            
+            <Box mt={6} pt={6} borderTop="1px solid" borderColor="bgGrid">
+              <Button 
+                as={RouterLink}
+                to="/assets"
+                variant="outline"
+                width="100%"
+              >
+                Back to All Properties
+              </Button>
+            </Box>
           </Box>
         </GridItem>
       </Grid>
       
       {/* Investment Modal */}
-      <Modal isOpen={isOpen} onClose={onClose} isCentered size="md">
+      <Modal isOpen={isOpen} onClose={onClose}>
         <ModalOverlay />
-        <ModalContent bg="primary.700" borderColor="bgGrid" borderWidth="1px">
-          <ModalHeader color="text.light">Invest in {property.name}</ModalHeader>
-          <ModalCloseButton color="text.light" />
-          <ModalBody pb={6}>
-            <VStack spacing={6} align="stretch">
-              <Stat>
-                <StatLabel>Token Price</StatLabel>
-                <StatNumber color="accent.500">
-                  {formatCurrency(property.metadata.tokenPrice || property.price / property.totalTokens)}
-                </StatNumber>
-                <StatHelpText>per token</StatHelpText>
-              </Stat>
-              
-              <FormControl>
-                <FormLabel>Number of Tokens</FormLabel>
-                <NumberInput 
-                  min={1} 
-                  max={property.availableTokens}
-                  value={tokensToInvest}
-                  onChange={(valueString) => setTokensToInvest(Number(valueString))}
-                >
-                  <NumberInputField bg="rgba(255,255,255,0.1)" borderColor="bgGrid" />
-                </NumberInput>
-              </FormControl>
-              
-              <Divider borderColor="bgGrid" />
-              
-              <Flex justify="space-between">
-                <Text>Total Investment</Text>
-                <Text fontWeight="bold" color="accent.500">
-                  {formatCurrency((property.metadata.tokenPrice || property.price / property.totalTokens) * tokensToInvest)}
-                </Text>
-              </Flex>
-            </VStack>
+        <ModalContent bg="var(--color-bg-primary)">
+          <ModalHeader>Invest in {property.name}</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <FormControl mb={4}>
+              <FormLabel>Number of Tokens</FormLabel>
+              <NumberInput 
+                min={1} 
+                max={property.availableTokens} 
+                value={tokensToInvest}
+                onChange={(value) => setTokensToInvest(parseInt(value))}
+              >
+                <NumberInputField />
+              </NumberInput>
+            </FormControl>
+            
+            <Divider my={4} />
+            
+            <Flex justify="space-between" mb={2}>
+              <Text>Price per Token</Text>
+              <Text>{formatCurrency(property.metadata.tokenPrice || property.price / property.totalTokens)}</Text>
+            </Flex>
+            
+            <Flex justify="space-between" fontWeight="bold">
+              <Text>Total Investment</Text>
+              <Text>{formatCurrency((property.metadata.tokenPrice || property.price / property.totalTokens) * tokensToInvest)}</Text>
+            </Flex>
           </ModalBody>
           
           <ModalFooter>
-            <Button variant="primary" mr={3} onClick={handleInvestment}>
+            <Button variant="outline" mr={3} onClick={onClose}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={handleInvestment}>
               Confirm Investment
             </Button>
-            <Button variant="ghost" onClick={onClose}>Cancel</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
