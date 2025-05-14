@@ -19,8 +19,14 @@ apiClient.interceptors.request.use(
       }
     }
     
+    // Verifica se é uma rota de RWA com método GET (rotas públicas)
+    const isPublicRwaRoute = config.url?.startsWith('/api/rwa') && 
+                             config.method?.toLowerCase() === 'get' && 
+                             !config.url?.includes('/my-rwas');
+    
     const token = authService.getToken();
-    if (token) {
+    // Apenas adiciona o token para rotas que não são públicas
+    if (token && !isPublicRwaRoute) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     
