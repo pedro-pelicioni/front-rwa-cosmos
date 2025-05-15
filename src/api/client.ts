@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { authService } from '../services/auth';
+import { useToast } from '@chakra-ui/react';
 
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000',
@@ -7,6 +8,14 @@ export const apiClient = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// Toast global para sessão expirada
+function showSessionExpiredToast() {
+  if (window && (window as any).showedSessionExpiredToast) return;
+  (window as any).showedSessionExpiredToast = true;
+  const event = new CustomEvent('sessionExpired');
+  window.dispatchEvent(event);
+}
 
 // Add request interceptor for debugging
 apiClient.interceptors.request.use(
@@ -25,6 +34,15 @@ apiClient.interceptors.request.use(
                              !config.url?.includes('/my-rwas');
     
     const token = authService.getToken();
+    // Se o token existe, verifica se está expirado
+    if (token) {
+      if (authService.isTokenExpired(token)) {
+        authService.logout();
+        showSessionExpiredToast();
+        window.location.href = '/wallet';
+        return Promise.reject(new Error('Token expirado. Usuário deslogado.'));
+      }
+    }
     // Apenas adiciona o token para rotas que não são públicas
     if (token && !isPublicRwaRoute) {
       config.headers.Authorization = `Bearer ${token}`;
