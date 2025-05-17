@@ -247,6 +247,24 @@ export const Wallet = () => {
     }
   };
 
+  // Toast para sessão expirada
+  useEffect(() => {
+    function handleSessionExpired() {
+      toast({
+        title: 'Sessão expirada',
+        description: 'Sua sessão expirou. Faça login novamente para continuar.',
+        status: 'warning',
+        duration: 7000,
+        isClosable: true,
+      });
+      setTimeout(() => {
+        (window as any).showedSessionExpiredToast = false;
+      }, 8000);
+    }
+    window.addEventListener('sessionExpired', handleSessionExpired);
+    return () => window.removeEventListener('sessionExpired', handleSessionExpired);
+  }, [toast]);
+
   return (
     <Box p={6}>
       <Flex mb={6} align="center">

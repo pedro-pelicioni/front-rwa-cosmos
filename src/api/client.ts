@@ -1,6 +1,5 @@
 import axios from 'axios';
 import { authService } from '../services/auth';
-import { useToast } from '@chakra-ui/react';
 
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000',
@@ -9,13 +8,8 @@ export const apiClient = axios.create({
   },
 });
 
-// Toast global para sessão expirada
-function showSessionExpiredToast() {
-  if (window && (window as any).showedSessionExpiredToast) return;
-  (window as any).showedSessionExpiredToast = true;
-  const event = new CustomEvent('sessionExpired');
-  window.dispatchEvent(event);
-}
+// Função para mostrar toast de sessão expirada
+// const showSessionExpiredToast = () => { ... }
 
 // Add request interceptor for debugging
 apiClient.interceptors.request.use(
@@ -32,27 +26,44 @@ apiClient.interceptors.request.use(
     const isPublicRwaRoute = config.url?.startsWith('/api/rwa') && 
                              config.method?.toLowerCase() === 'get' && 
                              !config.url?.includes('/my-rwas');
-    
+
+    // Verifica se é uma rota pública de autenticação
+    const isPublicAuthRoute = config.url?.startsWith('/api/auth/nonce') ||
+                              config.url?.startsWith('/api/auth/wallet-login');
+
     const token = authService.getToken();
+    const user = authService.getUser();
+    
     // Se o token existe, verifica se está expirado
     if (token) {
       if (authService.isTokenExpired(token)) {
+        console.log('[API] Token expirado, fazendo logout...');
         authService.logout();
-        showSessionExpiredToast();
-        window.location.href = '/wallet';
-        return Promise.reject(new Error('Token expirado. Usuário deslogado.'));
+        
+        // Não redireciona automaticamente, apenas rejeita a requisição
+        return Promise.reject(new Error('Token expirado. Por favor, faça login novamente.'));
       }
-    }
-    // Apenas adiciona o token para rotas que não são públicas
-    if (token && !isPublicRwaRoute) {
-      config.headers.Authorization = `Bearer ${token}`;
+      
+      // Adiciona o token para rotas que não são públicas
+      if (!isPublicRwaRoute && !isPublicAuthRoute) {
+        config.headers.Authorization = `Bearer ${token}`;
+        if (user?.address) {
+          config.headers['x-wallet-address'] = user.address;
+        }
+      }
+    } else if (!isPublicRwaRoute && !isPublicAuthRoute) {
+      // Se não tem token e não é rota pública, rejeita a requisição
+      return Promise.reject(new Error('Usuário não autenticado. Por favor, faça login.'));
     }
     
     console.log('Requisição sendo enviada:', {
       url: config.url,
       method: config.method,
       data: config.data,
-      headers: config.headers,
+      headers: {
+        ...config.headers,
+        Authorization: config.headers.Authorization ? 'Bearer [REDACTED]' : undefined
+      },
     });
     return config;
   },
@@ -82,10 +93,20 @@ apiClient.interceptors.response.use(
         data: error.config?.data,
       },
     });
+
+    // Tratamento específico para erros de autenticação
     if (error.response?.status === 401) {
-      // Token expirado ou inválido
+      console.log('[API] Erro 401 - Token inválido ou expirado');
       authService.logout();
     }
+
+    // Melhora a mensagem de erro para o usuário
+    if (error.response?.data?.message) {
+      error.message = error.response.data.message;
+    } else if (error.message.includes('jwt malformed')) {
+      error.message = 'Token inválido. Por favor, faça login novamente.';
+    }
+
     return Promise.reject(error);
   }
 ); 

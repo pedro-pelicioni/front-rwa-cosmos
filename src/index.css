@@ -103,3 +103,21 @@ button:focus-visible {
     background-color: #1a1a1a;
   }
 }
+
+/* Deixar o popup do Leaflet mais quadrado e confortável */
+.leaflet-popup-content-wrapper {
+  padding: 0 !important;
+  border-radius: 10px !important;
+  max-width: 420px !important;
+}
+.leaflet-popup-content {
+  margin: 0 !important;
+  padding: 12px 20px 12px 20px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 420px !important;
+  box-sizing: border-box !important;
+}
+.leaflet-popup-tip {
+  margin-bottom: -8px !important;
+}

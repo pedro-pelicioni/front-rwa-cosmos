@@ -15,6 +15,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useProperty } from '../hooks/useProperty';
 import { imageService } from '../services/imageService';
 import { RWAImage } from '../types/rwa';
+import { LatamMap } from '../components/LatamMap';
 
 export const AssetDetails = () => {
   const { id } = useParams<{ id: string }>();
@@ -147,7 +148,7 @@ export const AssetDetails = () => {
       <Grid templateColumns={{ base: "1fr", lg: "2fr 1fr" }} gap={8}>
         {/* Left Column - Images and Details */}
         <GridItem>
-          {/* Property Image Gallery */}
+          {/* Property Image Gallery + Mapa */}
           <Box mb={6} position="relative" borderRadius="xl" overflow="hidden">
             {loadingImages ? (
               <Flex 
@@ -160,14 +161,39 @@ export const AssetDetails = () => {
                 <Spinner size="xl" color="accent.500" />
               </Flex>
             ) : (
-              <Image 
-                src={property.metadata.images[activeImageIndex] || 'https://via.placeholder.com/800x400?text=No+Image'} 
-                alt={property.name}
-                width="100%"
-                height="400px"
-                objectFit="cover"
-                borderRadius="xl"
-              />
+              activeImageIndex < property.metadata.images.length ? (
+                <Image 
+                  src={property.metadata.images[activeImageIndex] || 'https://via.placeholder.com/800x400?text=No+Image'} 
+                  alt={property.name}
+                  width="100%"
+                  height="400px"
+                  objectFit="cover"
+                  borderRadius="xl"
+                />
+              ) : (
+                // Mostra o mapa como "imagem" final
+                property.metadata.gpsCoordinates && (
+                  <Box width="100%" height="400px" borderRadius="xl" overflow="hidden">
+                    <LatamMap
+                      singleAsset={{
+                        id: property.id,
+                        name: property.name,
+                        gps_coordinates: property.metadata.gpsCoordinates,
+                        country: (property.metadata.country ?? '') as string,
+                        images: property.metadata.images ?? [],
+                        currentValue: property.price,
+                        totalTokens: property.totalTokens,
+                        availableTokens: property.availableTokens,
+                        description: property.description,
+                        city: (property.metadata.city ?? '') as string,
+                      } as any}
+                      mapHeight="400px"
+                      mapZoom={15}
+                      mapInteractive={true}
+                    />
+                  </Box>
+                )
+              )
             )}
             <Badge 
               position="absolute" 
@@ -182,7 +208,6 @@ export const AssetDetails = () => {
             >
               ID: {property.id}
             </Badge>
-            
             {isOwner && (
               <Button
                 as={RouterLink}
@@ -198,35 +223,67 @@ export const AssetDetails = () => {
               </Button>
             )}
           </Box>
-          
-          {/* Thumbnail Gallery */}
+          {/* Thumbnails: imagens + miniatura do mapa */}
           <Flex mb={8} gap={2} overflow="auto" pb={2}>
-            {property.metadata.images.length > 0 ? (
-              property.metadata.images.map((img, idx) => (
-                <Box 
-                  key={idx} 
-                  width="80px" 
-                  height="60px" 
-                  borderRadius="md" 
-                  overflow="hidden"
-                  border="2px solid"
-                  borderColor={activeImageIndex === idx ? "accent.500" : "transparent"}
-                  cursor="pointer"
-                  onClick={() => setActiveImageIndex(idx)}
-                  transition="all 0.2s"
-                  _hover={{ transform: 'scale(1.05)' }}
-                >
-                  <Image 
-                    src={img || 'https://via.placeholder.com/80x60?text=No+Image'} 
-                    alt={`${property.name} view ${idx + 1}`}
-                    width="100%"
-                    height="100%"
-                    objectFit="cover"
-                  />
+            {property.metadata.images.length > 0 && property.metadata.images.map((img, idx) => (
+              <Box 
+                key={idx} 
+                width="80px" 
+                height="60px" 
+                borderRadius="md" 
+                overflow="hidden"
+                border="2px solid"
+                borderColor={activeImageIndex === idx ? "accent.500" : "transparent"}
+                cursor="pointer"
+                onClick={() => setActiveImageIndex(idx)}
+                transition="all 0.2s"
+                _hover={{ transform: 'scale(1.05)' }}
+              >
+                <Image 
+                  src={img || 'https://via.placeholder.com/80x60?text=No+Image'} 
+                  alt={`${property.name} view ${idx + 1}`}
+                  width="100%"
+                  height="100%"
+                  objectFit="cover"
+                />
+              </Box>
+            ))}
+            {/* Miniatura do mapa */}
+            {property.metadata.gpsCoordinates && (
+              <Box
+                width="80px"
+                height="60px"
+                borderRadius="md"
+                overflow="hidden"
+                border="2px solid"
+                borderColor={activeImageIndex === property.metadata.images.length ? "accent.500" : "transparent"}
+                cursor="pointer"
+                onClick={() => setActiveImageIndex(property.metadata.images.length)}
+                transition="all 0.2s"
+                _hover={{ transform: 'scale(1.05)' }}
+                position="relative"
+              >
+                <LatamMap
+                  singleAsset={{
+                    id: property.id,
+                    name: property.name,
+                    gps_coordinates: property.metadata.gpsCoordinates,
+                    country: (property.metadata.country ?? '') as string,
+                    images: property.metadata.images ?? [],
+                    currentValue: property.price,
+                    totalTokens: property.totalTokens,
+                    availableTokens: property.availableTokens,
+                    description: property.description,
+                    city: (property.metadata.city ?? '') as string,
+                  } as any}
+                  mapHeight="60px"
+                  mapZoom={12}
+                  mapInteractive={false}
+                />
+                <Box position="absolute" top={1} right={1} bg="whiteAlpha.800" borderRadius="full" p={1} zIndex={2}>
+                  <FaMapMarkerAlt color="#002D5B" />
                 </Box>
-              ))
-            ) : (
-              <Text color="text.dim">No images available for this property</Text>
+              </Box>
             )}
           </Flex>
 

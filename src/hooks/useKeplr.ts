@@ -28,17 +28,17 @@ export const useKeplr = () => {
 
   const signMessage = async (message: string, address: string): Promise<string> => {
     if (!window.keplr) {
+      console.error('[Keplr] Keplr não está instalado');
       throw new Error('Keplr não está instalado');
     }
 
     try {
-      console.log('[Keplr] Iniciando assinatura do nonce:', message);
-      
+      console.log('[Keplr] --- INÍCIO DA ASSINATURA DO NONCE ---');
+      console.log('[Keplr] Nonce recebido para assinar:', message);
       // Garante que a mensagem está em UTF-8
       const messageBytes = new TextEncoder().encode(message);
       const base64Message = btoa(String.fromCharCode(...messageBytes));
-      
-      console.log('[Keplr] Mensagem em base64:', base64Message);
+      console.log('[Keplr] Nonce em base64:', base64Message);
 
       const signDoc = {
         chain_id: '', // ADR-36 requer chain_id vazio
@@ -59,16 +59,15 @@ export const useKeplr = () => {
         ],
         memo: '',
       };
-
-      console.log('[Keplr] Documento de assinatura:', signDoc);
+      console.log('[Keplr] Documento de assinatura (signDoc):', JSON.stringify(signDoc, null, 2));
 
       const { signature } = await window.keplr.signAmino(
-        'cosmoshub-4', // chain_id para a carteira
+        'cosmoshub-4',
         address,
         signDoc
       );
-
-      console.log('[Keplr] Assinatura gerada:', signature);
+      console.log('[Keplr] Assinatura retornada pelo Keplr:', signature);
+      console.log('[Keplr] --- FIM DA ASSINATURA DO NONCE ---');
       return JSON.stringify(signature);
     } catch (err) {
       console.error('[Keplr] Erro ao assinar mensagem:', err);
@@ -85,7 +84,7 @@ export const useKeplr = () => {
 
     setIsConnecting(true);
     setError(null);
-    console.log('[Keplr] Iniciando conexão...');
+    console.log('[Keplr] --- INÍCIO DO FLUXO DE LOGIN ---');
 
     try {
       if (isConnected) {
@@ -110,12 +109,13 @@ export const useKeplr = () => {
         console.log('[Keplr] Nonce recebido do backend:', nonce);
         
         const signature = await signMessage(nonce, address);
-        console.log('[Keplr] Assinatura do nonce:', signature);
+        console.log('[Keplr] Assinatura do nonce (string JSON):', signature);
         
         const authResponse = await authService.loginWithWallet(address, signature, nonce);
         console.log('[Keplr] Resposta do backend após login:', authResponse);
         
         setIsConnected(true);
+        console.log('[Keplr] --- LOGIN FINALIZADO COM SUCESSO ---');
         return authResponse;
       }
       console.error('[Keplr] Nenhuma conta encontrada.');
@@ -127,7 +127,7 @@ export const useKeplr = () => {
       throw new Error(errorMessage);
     } finally {
       setIsConnecting(false);
-      console.log('[Keplr] Fim do processo de conexão.');
+      console.log('[Keplr] --- FIM DO FLUXO DE LOGIN ---');
     }
   };
 

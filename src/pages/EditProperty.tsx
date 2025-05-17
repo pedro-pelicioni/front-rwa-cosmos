@@ -417,6 +417,33 @@ export const EditProperty = () => {
     }
   };
 
+  // Nova função para deletar imagem de verdade
+  const handleDeleteImage = async (imageId: number, index: number) => {
+    try {
+      await imageService.delete(imageId);
+      setPropertyImages(images => images.filter(img => img.id !== imageId));
+      setFormData(prev => ({
+        ...prev,
+        images: prev.images.filter((_, i) => i !== index)
+      }));
+      toast({
+        title: 'Imagem excluída',
+        description: 'A imagem foi removida com sucesso.',
+        status: 'success',
+        duration: 3000,
+        isClosable: true
+      });
+    } catch (err) {
+      toast({
+        title: 'Erro ao excluir imagem',
+        description: 'Não foi possível remover a imagem.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <Container maxW="container.md" py={8}>
@@ -722,7 +749,7 @@ export const EditProperty = () => {
                               size="sm"
                               colorScheme="red"
                               variant="solid"
-                              onClick={() => removeImage(index)}
+                              onClick={() => handleDeleteImage(propertyImages[index]?.id, index)}
                             />
                           </Flex>
                         </Box>

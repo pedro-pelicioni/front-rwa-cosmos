@@ -5,18 +5,29 @@ import { FaSearch, FaSort, FaFilter, FaEdit } from 'react-icons/fa';
 import { useAuth } from '../hooks/useAuth';
 import { useProperty } from '../hooks/useProperty';
 import { Property } from '../types/Property';
+import { imageService } from '../services/imageService';
 
 export const Assets = () => {
   const { user } = useAuth();
   const { getAll, loading, error } = useProperty();
   const [searchTerm, setSearchTerm] = useState('');
   const [properties, setProperties] = useState<Property[]>([]);
+  const [propertyImages, setPropertyImages] = useState<{[key: string]: string}>({});
   
   useEffect(() => {
     const fetchProperties = async () => {
       try {
         const data = await getAll();
         setProperties(data);
+        // Buscar a primeira imagem de cada propriedade
+        const imagesObj: {[key: string]: string} = {};
+        await Promise.all(data.map(async (property) => {
+          const images = await imageService.getByRWAId(Number(property.id));
+          if (images.length > 0) {
+            imagesObj[property.id] = images[0].image_data || images[0].file_path || images[0].cid_link || '';
+          }
+        }));
+        setPropertyImages(imagesObj);
       } catch (err) {
         console.error('Erro ao buscar propriedades:', err);
       }
@@ -130,7 +141,7 @@ export const Assets = () => {
             >
               <Box height="220px" position="relative" overflow="hidden">
                 <Image 
-                  src={property.metadata.images[0] || 'https://via.placeholder.com/400x300?text=No+Image'} 
+                  src={propertyImages[property.id] || 'https://via.placeholder.com/400x300?text=No+Image'} 
                   alt={property.name}
                   objectFit="cover"
                   width="100%"

@@ -6,13 +6,15 @@ import { Home } from './pages/Home'
 import { Assets } from './pages/Assets'
 import { Transactions } from './pages/Transactions'
 import { AssetDetails } from './pages/AssetDetails'
-import { Wallet } from './pages/Wallet'
+import { UserDashboard } from './pages/UserDashboard'
 import { CreateProperty } from './pages/CreateProperty'
 import { EditProperty } from './pages/EditProperty'
 import { KeplrProvider } from './contexts/KeplrContext'
 import { AuthProvider } from './hooks/useAuth'
 import { Box, Text, VStack, Heading } from '@chakra-ui/react'
 import { ErrorBoundary } from 'react-error-boundary'
+import { LatamMap } from './components/LatamMap'
+import { KycPage } from './pages/KycPage'
 
 console.log('[App] Montando App');
 
@@ -96,9 +98,10 @@ export default function App() {
                   <Route path="/transactions" element={<Transactions />} />
                   <Route path="/assets/:id" element={<AssetDetails />} />
                   <Route path="/assets/:id/edit" element={<EditProperty />} />
-                  <Route path="/wallet" element={<Wallet />} />
-                  <Route path="/map" element={<Box p={8}><Heading>Map Page</Heading><Text>Coming soon!</Text></Box>} />
+                  <Route path="/wallet" element={<UserDashboard />} />
+                  <Route path="/map" element={<LatamMap />} />
                   <Route path="/how-it-works" element={<Box p={8}><Heading>How It Works</Heading><Text>Coming soon!</Text></Box>} />
+                  <Route path="/kyc" element={<KycPage />} />
                 </Routes>
               </Layout>
             </Router>

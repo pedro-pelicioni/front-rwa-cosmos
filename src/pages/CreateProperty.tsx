@@ -38,9 +38,10 @@ import {
   AlertDescription,
   CloseButton
 } from '@chakra-ui/react';
-import { FaDollarSign, FaPlus } from 'react-icons/fa';
+import { FaDollarSign, FaPlus, FaTrash, FaUpload, FaImage } from 'react-icons/fa';
 import { useAuth } from '../hooks/useAuth';
 import { useProperty } from '../hooks/useProperty';
+import { imageService } from '../services/imageService';
 
 export const CreateProperty = () => {
   const navigate = useNavigate();
@@ -70,6 +71,10 @@ export const CreateProperty = () => {
   const [newImage, setNewImage] = useState('');
   const [newDocument, setNewDocument] = useState('');
   const [newAmenity, setNewAmenity] = useState('');
+  
+  const [uploadedImages, setUploadedImages] = useState<File[]>([]);
+  const [uploadPreviews, setUploadPreviews] = useState<string[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -130,6 +135,25 @@ export const CreateProperty = () => {
     }));
   };
   
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    const fileArr = Array.from(files).slice(0, 3 - uploadedImages.length);
+    setUploadedImages(prev => [...prev, ...fileArr]);
+    fileArr.forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setUploadPreviews(prev => [...prev, reader.result as string]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+  
+  const removeUploadedImg = (idx: number) => {
+    setUploadedImages(prev => prev.filter((_, i) => i !== idx));
+    setUploadPreviews(prev => prev.filter((_, i) => i !== idx));
+  };
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
@@ -179,7 +203,8 @@ export const CreateProperty = () => {
     }
     
     try {
-      await create({
+      // 1. Cria a propriedade normalmente
+      const property = await create({
         name: formData.name,
         description: formData.description,
         location: formData.location,
@@ -187,7 +212,7 @@ export const CreateProperty = () => {
         totalTokens: parseInt(formData.totalTokens),
         availableTokens: parseInt(formData.totalTokens),
         metadata: {
-          images: formData.images,
+          images: [], // imagens serão vinculadas depois
           documents: formData.documents,
           amenities: formData.amenities,
           yearBuilt: formData.yearBuilt ? parseInt(formData.yearBuilt) : undefined,
@@ -197,17 +222,24 @@ export const CreateProperty = () => {
         owner: user?.address || '',
         status: 'active'
       });
-      
+
+      // 2. Faz upload das imagens e vincula à propriedade
+      setIsUploading(true);
+      await Promise.all(uploadedImages.map(async (file) => {
+        await imageService.upload(Number(property.id), file, file.name);
+      }));
+      setIsUploading(false);
+
       toast({
         title: "Propriedade Criada",
-        description: `Propriedade "${formData.name}" foi criada com sucesso`,
+        description: `Propriedade "${formData.name}" foi criada com sucesso` + (uploadedImages.length ? ' com imagens.' : '.'),
         status: "success",
         duration: 5000,
         isClosable: true
       });
-      
       navigate('/assets');
     } catch (err: any) {
+      setIsUploading(false);
       console.error('Error creating property:', err);
       
       // Captura o erro específico da resposta ou do estado do hook
@@ -425,40 +457,38 @@ export const CreateProperty = () => {
         <Heading size="md">Media & Documents</Heading>
         
         <FormControl>
-          <FormLabel>Property Images</FormLabel>
-          <HStack mb={2}>
-            <Input 
-              value={newImage}
-              onChange={(e) => setNewImage(e.target.value)}
-              placeholder="Enter image URL"
-              bg="rgba(255,255,255,0.05)"
-              border="1px solid"
-              borderColor="bgGrid"
-            />
-            <Button 
-              leftIcon={<FaPlus />} 
-              onClick={addImage}
-              variant="outline"
-              px={8}
-            >
-              Add
-            </Button>
-          </HStack>
-          <HStack spacing={2} flexWrap="wrap">
-            {formData.images.map((image, index) => (
-              <Tag 
-                key={index}
-                size="lg" 
-                borderRadius="full"
+          <FormLabel>Property Images (up to 3, optional)</FormLabel>
+          <VStack align="flex-start" spacing={2} mb={2}>
+            <HStack>
+              <Button
+                as="label"
+                leftIcon={<FaUpload />}
                 variant="outline"
-                bg="rgba(255,255,255,0.05)"
-                my={1}
+                isDisabled={uploadedImages.length >= 3}
               >
-                <TagLabel>{image.length > 30 ? `${image.substring(0, 30)}...` : image}</TagLabel>
-                <TagCloseButton onClick={() => removeImage(index)} />
-              </Tag>
-            ))}
-          </HStack>
+                Upload Image
+                <Input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  hidden
+                  onChange={handleImageChange}
+                  disabled={uploadedImages.length >= 3}
+                />
+              </Button>
+              <Text fontSize="sm" color="gray.400">{uploadedImages.length}/3 images</Text>
+            </HStack>
+            <HStack spacing={2} flexWrap="wrap">
+              {uploadPreviews.map((src, idx) => (
+                <Box key={idx} position="relative">
+                  <img src={src} alt={`preview-${idx}`} style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid #444' }} />
+                  <Button size="xs" colorScheme="red" position="absolute" top={0} right={0} borderRadius="full" onClick={() => removeUploadedImg(idx)}>
+                    <FaTrash />
+                  </Button>
+                </Box>
+              ))}
+            </HStack>
+          </VStack>
         </FormControl>
         
         <FormControl>
@@ -547,7 +577,7 @@ export const CreateProperty = () => {
           <Button 
             type="submit"
             variant="primary"
-            isLoading={loading}
+            isLoading={loading || isUploading}
             loadingText="Creating..."
           >
             Create Property
