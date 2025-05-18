@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
-import { Box, Spinner, Select, Text, Slider, SliderTrack, SliderFilledTrack, SliderThumb, NumberInput, NumberInputField, Flex, Image, Button, useDisclosure, IconButton } from '@chakra-ui/react';
+import { Box, Spinner, Select, Text, Slider, SliderTrack, SliderFilledTrack, SliderThumb, NumberInput, NumberInputField, Flex, Image, Button, useDisclosure, IconButton, Stack } from '@chakra-ui/react';
 import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -251,6 +251,10 @@ function PropertyTooltip({ asset, showImages, onViewDetails, compact }: { asset:
   const [currentSlide, setCurrentSlide] = useState(0);
   const images = asset.images || [];
 
+  if (images.length > 0) {
+    console.log('[PropertyTooltip] asset.id:', asset.id, 'currentSlide:', currentSlide, 'src:', images[currentSlide]);
+  }
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -279,32 +283,32 @@ function PropertyTooltip({ asset, showImages, onViewDetails, compact }: { asset:
       flexDirection="column"
       justifyContent="flex-start"
     >
-      <Text fontWeight="bold" mb={0.5} fontSize="sm" noOfLines={1} lineHeight={1}>{asset.name}</Text>
-      <Text fontSize="xs" color="gray.600" mb={0.5} noOfLines={1} lineHeight={1}>{asset.city}, {asset.country}</Text>
-      <Box as="dl" fontSize="xs" mb={0.25}>
-        <Box display="grid" gridTemplateColumns="auto 1fr auto 1fr" gap={1} alignItems="center">
-          <Text color="gray.600" fontSize="xs" lineHeight={1}>Property Value:</Text>
-          <Text fontWeight="bold" color="blue.600" fontSize="xs" lineHeight={1}>{formatCurrency(price)}</Text>
-          <Text color="gray.600" fontSize="xs" lineHeight={1}>Token Price:</Text>
-          <Text fontWeight="bold" color="blue.600" fontSize="xs" lineHeight={1}>{formatCurrency(tokenPrice)}</Text>
-
-          <Text color="gray.600" fontSize="xs" lineHeight={1}>Total Tokens:</Text>
-          <Text fontWeight="bold" color="blue.600" fontSize="xs" lineHeight={1}>{totalTokens}</Text>
-          <Text color="gray.600" fontSize="xs" lineHeight={1}>Available:</Text>
-          <Text fontWeight="bold" color="blue.600" fontSize="xs" lineHeight={1}>{availableTokens}</Text>
-
-          <Text color="gray.600" fontSize="xs" lineHeight={1}>Status:</Text>
-          <Text
-            fontWeight="bold"
-            color={status === 'active' ? 'green.600' : status === 'inactive' ? 'gray.600' : 'red.600'}
-            fontSize="xs"
-            lineHeight={1}
-            style={{ gridColumn: '2 / span 3' }}
-          >
-            {status.charAt(0).toUpperCase() + status.slice(1)}
-          </Text>
+      {images.length > 0 && (
+        <Box mb={2} borderRadius="md" overflow="hidden" width="100%" height="120px" bg="gray.100">
+          <Image
+            src={images[currentSlide]}
+            alt={asset.name}
+            width="100%"
+            height="120px"
+            objectFit="cover"
+            borderRadius="md"
+            fallbackSrc="https://via.placeholder.com/320x120?text=No+Image"
+          />
         </Box>
-      </Box>
+      )}
+      <Text fontWeight="bold" mb={0.5} fontSize="sm" noOfLines={1} lineHeight={1}>{asset.name}</Text>
+      <Text fontSize="xs" color="gray.600" mb={1} noOfLines={1} lineHeight={1}>{asset.city}, {asset.country}</Text>
+      <div style={{ fontSize: '12px', margin: 0, padding: 0 }}>
+        <div><b>Property Value:</b> <span style={{ color: '#2563eb', fontWeight: 600 }}>{formatCurrency(price)}</span></div>
+        <div><b>Token Price:</b> <span style={{ color: '#2563eb', fontWeight: 600 }}>{formatCurrency(tokenPrice)}</span></div>
+        <div><b>Total Tokens:</b> <span style={{ color: '#2563eb', fontWeight: 600 }}>{totalTokens}</span></div>
+        <div><b>Available:</b> <span style={{ color: '#2563eb', fontWeight: 600 }}>{availableTokens}</span></div>
+        <div>
+          <b>Status:</b> <span style={{ color: status === 'active' ? 'green' : status === 'inactive' ? 'gray' : 'red', fontWeight: 600 }}>
+            {status.charAt(0).toUpperCase() + status.slice(1)}
+          </span>
+        </div>
+      </div>
       {showImages && onViewDetails && (
         <Button
           size="xs"
@@ -334,6 +338,48 @@ function PanToWithOffset({ position, trigger }: { position: [number, number], tr
     // eslint-disable-next-line
   }, [trigger]);
   return null;
+}
+
+function DynamicPropertyTooltip({ asset, onViewDetails, compact }: { asset: any, onViewDetails?: () => void, compact?: boolean }) {
+  const [images, setImages] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    setLoading(true);
+    (async () => {
+      try {
+        console.log('[DynamicPropertyTooltip] Buscando imagens para asset.id:', asset.id);
+        const result = await imageService.getByRWAId(asset.id);
+        if (isMounted) {
+          const urls = result.map(img => img.image_data || img.file_path || img.cid_link).filter(Boolean);
+          console.log('[DynamicPropertyTooltip] Imagens encontradas para asset.id', asset.id, urls);
+          setImages(urls);
+        }
+      } catch (err) {
+        if (isMounted) setImages([]);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    })();
+    return () => { isMounted = false; };
+  }, [asset.id]);
+
+  if (loading) {
+    return <Box p={4} textAlign="center"><Spinner size="sm" /></Box>;
+  }
+
+  // Log extra para garantir o array de imagens no render
+  console.log('[DynamicPropertyTooltip] Render asset.id:', asset.id, 'images:', images);
+
+  return (
+    <PropertyTooltip
+      asset={{ ...asset, images }}
+      showImages={!!images.length}
+      onViewDetails={onViewDetails}
+      compact={compact}
+    />
+  );
 }
 
 type LatamMapProps = {
@@ -620,9 +666,18 @@ export function LatamMap({
                   minWidth={150}
                   maxWidth={220}
                 >
-                  <PropertyTooltip
-                    asset={{ ...asset, images: imageUrls }}
-                    showImages={!!imageUrls.length}
+                  {/* TESTE: Bloco HTML puro para depuração visual */}
+                  <div style={{ fontSize: '12px', padding: 0, margin: 0, background: '#fff', borderRadius: 6, marginBottom: 8 }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: 2 }}>Teste HTML puro</div>
+                    <div><b>Property Value:</b> $0</div>
+                    <div><b>Token Price:</b> $0</div>
+                    <div><b>Total Tokens:</b> 1000</div>
+                    <div><b>Available:</b> 0</div>
+                    <div><b>Status:</b> Active</div>
+                  </div>
+                  {/* Fim do teste */}
+                  <DynamicPropertyTooltip
+                    asset={asset}
                     onViewDetails={() => handleViewDetails(asset)}
                     compact={true}
                   />
