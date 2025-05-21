@@ -15,6 +15,10 @@ interface NonceResponse {
   nonce: string;
 }
 
+const TOKEN_KEY = 'auth_token';
+const USER_KEY = 'user';
+const TOKEN_REFRESH_THRESHOLD = 5 * 60 * 1000; // 5 minutos em milissegundos
+
 export const authService = {
   async getNonce(address: string): Promise<string> {
     try {
@@ -52,19 +56,25 @@ export const authService = {
   },
 
   logout() {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('user');
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
     delete apiClient.defaults.headers.common['Authorization'];
   },
 
   getToken(): string | null {
-    const token = localStorage.getItem('auth_token');
+    const token = localStorage.getItem(TOKEN_KEY);
     if (!token) return null;
     
     // Verifica se o token é válido antes de retornar
     if (!this.isValidToken(token)) {
       this.logout();
       return null;
+    }
+
+    // Verifica se o token está próximo de expirar
+    if (this.isTokenExpiringSoon(token)) {
+      console.log('[authService] Token próximo de expirar, tentando refresh...');
+      this.refreshToken();
     }
     
     return token;
@@ -75,16 +85,16 @@ export const authService = {
       throw new Error('Token inválido');
     }
     
-    localStorage.setItem('auth_token', token);
+    localStorage.setItem(TOKEN_KEY, token);
     apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
   },
 
   setUser(user: User) {
-    localStorage.setItem('user', JSON.stringify(user));
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
   },
 
   getUser(): User | null {
-    const userStr = localStorage.getItem('user');
+    const userStr = localStorage.getItem(USER_KEY);
     if (!userStr) return null;
     try {
       return JSON.parse(userStr) as User;
@@ -106,6 +116,39 @@ export const authService = {
     } catch (e) {
       console.error('Erro ao verificar expiração do token:', e);
       return true;
+    }
+  },
+
+  isTokenExpiringSoon(token: string): boolean {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const expirationTime = payload.exp * 1000;
+      const currentTime = Date.now();
+      return expirationTime - currentTime < TOKEN_REFRESH_THRESHOLD;
+    } catch (e) {
+      console.error('Erro ao verificar expiração próxima do token:', e);
+      return true;
+    }
+  },
+
+  async refreshToken(): Promise<void> {
+    try {
+      const user = this.getUser();
+      if (!user) {
+        throw new Error('Usuário não encontrado para refresh do token');
+      }
+
+      // Obtém um novo nonce
+      const nonce = await this.getNonce(user.address);
+      
+      // Aqui você precisaria implementar a lógica para obter uma nova assinatura da wallet
+      // Por enquanto, vamos apenas fazer logout e pedir para o usuário fazer login novamente
+      this.logout();
+      throw new Error('Sessão expirada. Por favor, faça login novamente.');
+    } catch (error) {
+      console.error('Erro ao refresh do token:', error);
+      this.logout();
+      throw error;
     }
   },
 

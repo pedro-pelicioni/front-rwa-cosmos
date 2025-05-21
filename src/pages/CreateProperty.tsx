@@ -159,6 +159,11 @@ export const CreateProperty = () => {
     setFormError(null);
     setFieldErrors({});
     
+    if (uploadedImages.length === 0) {
+      setFormError('Please upload at least one image.');
+      return;
+    }
+    
     // Basic validation
     const newFieldErrors: {[key: string]: boolean} = {};
     let hasErrors = false;
@@ -456,8 +461,8 @@ export const CreateProperty = () => {
         
         <Heading size="md">Media & Documents</Heading>
         
-        <FormControl>
-          <FormLabel>Property Images (up to 3, optional)</FormLabel>
+        <FormControl isRequired>
+          <FormLabel>Property Images</FormLabel>
           <VStack align="flex-start" spacing={2} mb={2}>
             <HStack>
               <Button

@@ -22,6 +22,11 @@ export interface RWA {
   created_at?: string;
   updatedAt: string;
   updated_at?: string;
+  images?: string[];
+  metadata?: {
+    images?: string[];
+    [key: string]: any;
+  };
 }
 
 export interface RWAImage {

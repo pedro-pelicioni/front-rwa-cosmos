@@ -1,5 +1,6 @@
 import { apiClient } from '../api/client';
 import { RWAImage } from '../types/rwa';
+import { get, set } from 'idb-keyval';
 
 // Função para converter arquivo para base64
 const fileToBase64 = (file: File): Promise<string> => {
@@ -11,12 +12,31 @@ const fileToBase64 = (file: File): Promise<string> => {
   });
 };
 
+const getImageCacheKey = (rwaId: number, imgId: number) => `rwa_image_${rwaId}_${imgId}`;
+
 export const imageService = {
   async getByRWAId(rwaId: number): Promise<RWAImage[]> {
     try {
       // GET /api/rwa/images/rwa/{rwa_id}
       const response = await apiClient.get<RWAImage[]>(`/api/rwa/images/rwa/${rwaId}`);
-      return Array.isArray(response.data) ? response.data : [];
+      const images = Array.isArray(response.data) ? response.data : [];
+
+      // Para cada imagem, tenta buscar a URL do IndexedDB
+      const imagesWithCache = await Promise.all(images.map(async (img) => {
+        const cacheKey = getImageCacheKey(rwaId, img.id);
+        let url = await get(cacheKey);
+        if (url) {
+          // Se encontrou no cache, sobrescreve o campo image_data
+          return { ...img, image_data: url };
+        } else {
+          // Se não encontrou, salva no cache para próximas vezes
+          const urlToCache = img.image_data || img.file_path || img.cid_link || '';
+          if (urlToCache) await set(cacheKey, urlToCache);
+          return img;
+        }
+      }));
+
+      return imagesWithCache;
     } catch (error) {
       console.warn('Erro ao buscar imagens, retornando array vazio:', error);
       return [];

@@ -97,6 +97,15 @@ export const Layout = ({ children }: LayoutProps) => {
               >
                 My Account
               </Text>
+              <Text 
+                as={RouterLink} to="/available-sales" 
+                fontWeight={isActive('/available-sales') ? "bold" : "normal"}
+                borderBottom={isActive('/available-sales') ? "2px solid" : "none"}
+                borderColor="accent.500"
+                pb={1}
+              >
+                Investir
+              </Text>
             </HStack>
             
             {/* Search & Auth */}

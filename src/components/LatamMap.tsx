@@ -12,6 +12,7 @@ import { ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
 import { RWA, RWAImage } from '../types/rwa';
 import { useNavigate } from 'react-router-dom';
 import ReactDOM from 'react-dom';
+import { getImageCookie, setImageCookie } from '../utils/imageCookieCache';
 
 // Corrige o ícone padrão do Leaflet
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
@@ -352,7 +353,15 @@ function DynamicPropertyTooltip({ asset, onViewDetails, compact }: { asset: any,
         console.log('[DynamicPropertyTooltip] Buscando imagens para asset.id:', asset.id);
         const result = await imageService.getByRWAId(asset.id);
         if (isMounted) {
-          const urls = result.map(img => img.image_data || img.file_path || img.cid_link).filter(Boolean);
+          const urls = result.map(img => {
+            const cacheKey = `rwa_image_${asset.id}_${img.id}`;
+            let url = getImageCookie(cacheKey);
+            if (!url) {
+              url = img.image_data || img.file_path || img.cid_link || '';
+              setImageCookie(cacheKey, url);
+            }
+            return url;
+          }).filter(Boolean);
           console.log('[DynamicPropertyTooltip] Imagens encontradas para asset.id', asset.id, urls);
           setImages(urls);
         }

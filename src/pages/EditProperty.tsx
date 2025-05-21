@@ -50,6 +50,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useProperty } from '../hooks/useProperty';
 import { imageService } from '../services/imageService';
 import { RWAImage } from '../types/rwa';
+import { getImageCookie, setImageCookie } from '../utils/imageCookieCache';
 
 export const EditProperty = () => {
   const navigate = useNavigate();
@@ -132,22 +133,22 @@ export const EditProperty = () => {
       try {
         setLoadingImages(true);
         console.log('Buscando imagens para o RWA ID:', rwaId);
-        
         const images = await imageService.getByRWAId(rwaId);
         console.log('Imagens encontradas:', images);
-        
         setPropertyImages(images);
-        
         // Se encontrarmos imagens, atualizamos também o formData.images
         if (images.length > 0) {
           setFormData(prev => {
             return {
               ...prev,
               images: images.map(img => {
-                // Se a imagem tiver image_data (base64), usamos diretamente
-                if (img.image_data) return img.image_data;
-                // Caso contrário, tentamos file_path ou cid_link
-                return img.file_path || img.cid_link || '';
+                const cacheKey = `rwa_image_${rwaId}_${img.id}`;
+                let url = getImageCookie(cacheKey);
+                if (!url) {
+                  url = img.image_data || img.file_path || img.cid_link || '';
+                  setImageCookie(cacheKey, url);
+                }
+                return url;
               })
             };
           });

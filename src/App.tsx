@@ -14,7 +14,9 @@ import { AuthProvider } from './hooks/useAuth'
 import { Box, Text, VStack, Heading } from '@chakra-ui/react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { LatamMap } from './components/LatamMap'
-import { KycPage } from './pages/KycPage'
+import { PaymentPage } from './pages/PaymentPage'
+import { AvailableSales } from './pages/AvailableSales'
+import LoginPage from './pages/LoginPage'
 
 console.log('[App] Montando App');
 
@@ -101,7 +103,9 @@ export default function App() {
                   <Route path="/wallet" element={<UserDashboard />} />
                   <Route path="/map" element={<LatamMap />} />
                   <Route path="/how-it-works" element={<Box p={8}><Heading>How It Works</Heading><Text>Coming soon!</Text></Box>} />
-                  <Route path="/kyc" element={<KycPage />} />
+                  <Route path="/payment/:rwaId/:tokenId/:quantity/:pricePerToken" element={<PaymentPage />} />
+                  <Route path="/available-sales" element={<AvailableSales />} />
+                  <Route path="/login" element={<LoginPage />} />
                 </Routes>
               </Layout>
             </Router>

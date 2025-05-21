@@ -22,7 +22,8 @@ import {
   Textarea,
   Flex,
   Spacer,
-  ButtonGroup
+  ButtonGroup,
+  Spinner
 } from '@chakra-ui/react';
 import { useKeplr } from '../hooks/useKeplr';
 import { useNoble } from '../hooks/useNoble';
@@ -30,6 +31,8 @@ import { useAuth } from '../hooks/useAuth.tsx';
 import { DirectSecp256k1HdWallet } from '@cosmjs/proto-signing';
 import { SigningCosmWasmClient } from '@cosmjs/cosmwasm-stargate';
 import { Decimal } from '@cosmjs/math';
+import { useRWATokens } from '../hooks/useRWATokens';
+import { RWANFTToken } from '../types/rwa';
 
 // Endpoint RPC público que suporta CORS
 const RPC_ENDPOINT = 'https://cosmos-rpc.polkachu.com';
@@ -52,6 +55,8 @@ export const Wallet = () => {
   const [isSigning, setIsSigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const toast = useToast();
+  const [myTokens, setMyTokens] = useState<RWANFTToken[]>([]);
+  const { getByOwner, loading: loadingTokens } = useRWATokens();
 
   // Função para logar etapas
   const logStep = (msg: string) => {
@@ -265,6 +270,19 @@ export const Wallet = () => {
     return () => window.removeEventListener('sessionExpired', handleSessionExpired);
   }, [toast]);
 
+  useEffect(() => {
+    const fetchTokens = async () => {
+      if (!user) return;
+      try {
+        const tokens = await getByOwner(Number(user.id));
+        setMyTokens(tokens);
+      } catch (err) {
+        setMyTokens([]);
+      }
+    };
+    fetchTokens();
+  }, [user, getByOwner]);
+
   return (
     <Box p={6}>
       <Flex mb={6} align="center">
@@ -348,6 +366,31 @@ export const Wallet = () => {
                 </HStack>
               )}
             </VStack>
+          </CardBody>
+        </Card>
+      )}
+      {user && (
+        <Card variant="outline" mt={6}>
+          <CardHeader>
+            <Heading size="md">My Tokens</Heading>
+          </CardHeader>
+          <CardBody>
+            {loadingTokens ? (
+              <Spinner />
+            ) : myTokens.length === 0 ? (
+              <Text>You don't have any tokens.</Text>
+            ) : (
+              <VStack align="stretch" spacing={3}>
+                {myTokens.map((token: any) => (
+                  <Box key={token.id} p={3} borderWidth={1} borderRadius="md">
+                    <Text><b>Token:</b> {token.token_identifier}</Text>
+                    <Text><b>ID:</b> {token.id}</Text>
+                    <Text><b>RWA:</b> {token.rwa_id}</Text>
+                    <Text><b>Metadata URI:</b> {token.metadata_uri || '-'}</Text>
+                  </Box>
+                ))}
+              </VStack>
+            )}
           </CardBody>
         </Card>
       )}

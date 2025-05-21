@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Box, Heading, Text, Stack, Container, SimpleGrid, Button, Flex, Image, useInterval } from '@chakra-ui/react'
+import { Box, Heading, Text, Stack, Container, SimpleGrid, Button, Flex, Image, useInterval, SlideFade, Fade } from '@chakra-ui/react'
 import { Link as RouterLink } from 'react-router-dom';
 import homeIllustration from '../assets/home-illustration.svg'
 import { useProperty } from '../hooks/useProperty';
 import { Property } from '../types/Property';
 import { imageService } from '../services/imageService';
+import { getImageCookie, setImageCookie } from '../utils/imageCookieCache';
 
 export const Home = () => {
   const { getAll, loading, error } = useProperty();
@@ -12,6 +13,7 @@ export const Home = () => {
   const [propertyImages, setPropertyImages] = useState<{[key: string]: string}>({});
   const [currentSlide, setCurrentSlide] = useState(0);
   const [slides, setSlides] = useState<Property[][]>([]);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   useEffect(() => {
     const fetchProperties = async () => {
@@ -26,7 +28,14 @@ export const Home = () => {
         await Promise.all(limitedData.map(async (property) => {
           const images = await imageService.getByRWAId(Number(property.id));
           if (images.length > 0) {
-            imagesObj[property.id] = images[0].image_data || images[0].file_path || images[0].cid_link || '';
+            const img = images[0];
+            const cacheKey = `rwa_image_${property.id}_${img.id}`;
+            let url = getImageCookie(cacheKey);
+            if (!url) {
+              url = img.image_data || img.file_path || img.cid_link || '';
+              setImageCookie(cacheKey, url);
+            }
+            imagesObj[property.id] = url;
           }
         }));
         setPropertyImages(imagesObj);
@@ -47,10 +56,16 @@ export const Home = () => {
 
   // Mudar slide automaticamente a cada 5 segundos
   useInterval(() => {
-    if (slides.length > 0) {
-      setCurrentSlide((prev) => (prev + 1) % slides.length);
+    if (slides.length > 0 && !isTransitioning) {
+      handleSlideChange((currentSlide + 1) % slides.length);
     }
   }, 5000);
+
+  const handleSlideChange = (newSlide: number) => {
+    setIsTransitioning(true);
+    setCurrentSlide(newSlide);
+    setTimeout(() => setIsTransitioning(false), 500); // Tempo da animação
+  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -141,51 +156,56 @@ export const Home = () => {
           </Heading>
           
           <Box position="relative">
-            <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={8}>
-              {slides[currentSlide]?.map((property) => (
-                <Box 
-                  key={property.id}
-                  bg="rgba(255,255,255,0.05)"
-                  p={0}
-                  borderRadius="xl"
-                  border="1px solid"
-                  borderColor="bgGrid"
-                  overflow="hidden"
-                  _hover={{ 
-                    transform: 'translateY(-5px)', 
-                    transition: 'all 0.3s ease',
-                    borderColor: 'accent.500',
-                  }}
-                >
-                  <Box height="200px" overflow="hidden">
-                    <Image 
-                      src={propertyImages[property.id] || 'https://via.placeholder.com/400x300?text=No+Image'}
-                      alt={property.name}
-                      width="100%"
-                      height="100%"
-                      objectFit="cover"
-                    />
-                  </Box>
-                  
-                  <Box p={6}>
-                    <Heading size="md" mb={2}>{property.name}</Heading>
-                    <Text color="text.dim" mb={2}>{property.location}</Text>
-                    <Text fontWeight="bold" color="accent.500" fontSize="lg" mb={4}>
-                      {formatCurrency(property.price)}
-                    </Text>
-                    
-                    <Button 
-                      width="full"
-                      variant="primary"
-                      as={RouterLink}
-                      to={`/assets/${property.id}`}
+            <SlideFade in={!isTransitioning} offsetY="20px">
+              <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={8}>
+                {slides[currentSlide]?.map((property) => (
+                  <Fade in={!isTransitioning} key={property.id}>
+                    <Box 
+                      bg="rgba(255,255,255,0.05)"
+                      p={0}
+                      borderRadius="xl"
+                      border="1px solid"
+                      borderColor="bgGrid"
+                      overflow="hidden"
+                      _hover={{ 
+                        transform: 'translateY(-5px)', 
+                        transition: 'all 0.3s ease',
+                        borderColor: 'accent.500',
+                      }}
                     >
-                      View Details
-                    </Button>
-                  </Box>
-                </Box>
-              ))}
-            </SimpleGrid>
+                      <Box height="200px" overflow="hidden">
+                        <Image 
+                          src={propertyImages[property.id] || 'https://via.placeholder.com/400x300?text=No+Image'}
+                          alt={property.name}
+                          width="100%"
+                          height="100%"
+                          objectFit="cover"
+                          transition="transform 0.3s ease"
+                          _hover={{ transform: 'scale(1.05)' }}
+                        />
+                      </Box>
+                      
+                      <Box p={6}>
+                        <Heading size="md" mb={2}>{property.name}</Heading>
+                        <Text color="text.dim" mb={2}>{property.location}</Text>
+                        <Text fontWeight="bold" color="accent.500" fontSize="lg" mb={4}>
+                          {formatCurrency(property.price)}
+                        </Text>
+                        
+                        <Button 
+                          width="full"
+                          variant="primary"
+                          as={RouterLink}
+                          to={`/assets/${property.id}`}
+                        >
+                          View Details
+                        </Button>
+                      </Box>
+                    </Box>
+                  </Fade>
+                ))}
+              </SimpleGrid>
+            </SlideFade>
 
             {/* Indicadores de slide */}
             {slides.length > 1 && (
@@ -198,8 +218,9 @@ export const Home = () => {
                     borderRadius="full"
                     bg={currentSlide === index ? "accent.500" : "rgba(255,255,255,0.2)"}
                     cursor="pointer"
-                    onClick={() => setCurrentSlide(index)}
+                    onClick={() => handleSlideChange(index)}
                     transition="all 0.3s"
+                    _hover={{ transform: 'scale(1.2)' }}
                   />
                 ))}
               </Flex>

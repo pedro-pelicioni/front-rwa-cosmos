@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, useNavigate, Link as RouterLink } from 'react-router-dom';
 import { 
   Box, Container, Heading, Text, Button, Grid, GridItem, Flex, 
@@ -7,15 +7,20 @@ import {
   StatNumber, StatHelpText, useDisclosure, Modal, ModalOverlay, 
   ModalContent, ModalHeader, ModalBody, ModalCloseButton,
   ModalFooter, NumberInput, NumberInputField,
-  FormControl, FormLabel, useToast, Spinner
+  FormControl, FormLabel, useToast, Spinner, Stack, IconButton,
+  AlertDialog, AlertDialogOverlay, AlertDialogContent, AlertDialogHeader,
+  AlertDialogBody, AlertDialogFooter
 } from '@chakra-ui/react';
-import { FaMapMarkerAlt, FaCalendarAlt, FaBuilding, FaCoins, FaFileAlt, FaUserAlt, FaEdit } from 'react-icons/fa';
+import { FaMapMarkerAlt, FaCalendarAlt, FaBuilding, FaCoins, FaFileAlt, FaUserAlt, FaEdit, FaTrash } from 'react-icons/fa';
 import { Property } from '../types/Property';
 import { useAuth } from '../hooks/useAuth';
 import { useProperty } from '../hooks/useProperty';
 import { imageService } from '../services/imageService';
 import { RWAImage } from '../types/rwa';
 import { LatamMap } from '../components/LatamMap';
+import { tokenService } from '../services/tokenService';
+import { RWANFTToken } from '../types/rwa';
+import { getImageFromIDB, setImageToIDB } from '../utils/imageIDBCache';
 
 export const AssetDetails = () => {
   const { id } = useParams<{ id: string }>();
@@ -29,76 +34,112 @@ export const AssetDetails = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [propertyImages, setPropertyImages] = useState<RWAImage[]>([]);
   const [loadingImages, setLoadingImages] = useState(false);
+  const [nftTokens, setNftTokens] = useState<RWANFTToken[]>([]);
+  const [loadingTokens, setLoadingTokens] = useState(false);
+  const [creatingTokens, setCreatingTokens] = useState(false);
+  const [showTokensModal, setShowTokensModal] = useState(false);
+  const [tokenToDelete, setTokenToDelete] = useState<RWANFTToken | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [tokenToEdit, setTokenToEdit] = useState<RWANFTToken | null>(null);
+  const [editMetadataUri, setEditMetadataUri] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const isMounted = useRef(true);
 
+  // Função para buscar imagens com cache global
+  const fetchImagesWithCache = useCallback(async (rwaId: number) => {
+    setLoadingImages(true);
+    try {
+      const images = await imageService.getByRWAId(rwaId);
+      setPropertyImages(images);
+      const imageUrls = images.map(img => img.image_data || img.file_path || img.cid_link || '');
+      setProperty(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          metadata: {
+            ...prev.metadata,
+            images: imageUrls
+          }
+        };
+      });
+    } catch (err) {
+      console.error('Erro ao buscar imagens da propriedade:', err);
+    } finally {
+      setLoadingImages(false);
+    }
+  }, []);
+
+  // Função para buscar propriedade
+  const fetchProperty = useCallback(async () => {
+    if (!id) return;
+    try {
+      const data = await getById(id);
+      console.log('Propriedade recebida do serviço:', data);
+      setProperty(data);
+      console.log('Propriedade setada no state:', data);
+      const rwaId = parseInt(id, 10);
+      await fetchImagesWithCache(rwaId);
+    } catch (err) {
+      console.error('Erro ao buscar detalhes da propriedade:', err);
+      navigate('/assets');
+      toast({
+        title: "Property not found",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  }, [id, getById, navigate, toast, fetchImagesWithCache]);
+
+  // Efeito principal
   useEffect(() => {
     if (!id) return;
-    
-    const fetchProperty = async () => {
-      try {
-        const data = await getById(id);
-        setProperty(data);
-        
-        // Uma vez que temos a propriedade, buscamos as imagens
-        fetchPropertyImages(parseInt(id));
-      } catch (err) {
-        console.error('Erro ao buscar detalhes da propriedade:', err);
-        navigate('/assets');
-        toast({
-          title: "Property not found",
-          status: "error",
-          duration: 3000,
-          isClosable: true,
-        });
-      }
-    };
-    
-    const fetchPropertyImages = async (rwaId: number) => {
-      try {
-        setLoadingImages(true);
-        console.log('Buscando imagens para o RWA ID:', rwaId);
-        
-        const images = await imageService.getByRWAId(rwaId);
-        console.log('Imagens encontradas:', images);
-        
-        setPropertyImages(images);
-        
-        // Se encontrarmos imagens, atualizamos também o property.metadata.images
-        if (images.length > 0) {
-          setProperty(prev => {
-            if (!prev) return null;
-            
-            return {
-              ...prev,
-              metadata: {
-                ...prev.metadata,
-                images: images.map(img => {
-                  // Se a imagem tiver image_data (base64), usamos diretamente
-                  if (img.image_data) return img.image_data;
-                  // Caso contrário, tentamos file_path ou cid_link
-                  return img.file_path || img.cid_link || '';
-                })
-              }
-            };
-          });
-        }
-      } catch (err) {
-        console.error('Erro ao buscar imagens da propriedade:', err);
-      } finally {
-        setLoadingImages(false);
-      }
-    };
-    
     fetchProperty();
-  }, [id, getById, navigate, toast]);
+
+    return () => {
+      isMounted.current = false;
+    };
+  }, [id, fetchProperty]);
+
+  // Buscar tokens NFT do asset
+  useEffect(() => {
+    if (!property?.id) return;
+    const fetchTokens = async () => {
+      setLoadingTokens(true);
+      try {
+        const response = await tokenService.getByRWAId(
+          typeof property.id === 'string' ? parseInt(property.id, 10) : property.id
+        );
+        // Garante que nftTokens sempre será um array
+        const tokens = Array.isArray(response) ? response : [];
+        setNftTokens(tokens);
+      } catch (err) {
+        setNftTokens([]);
+      } finally {
+        setLoadingTokens(false);
+      }
+    };
+    fetchTokens();
+  }, [property?.id]);
 
   const handleInvestment = () => {
-    toast({
-      title: "Investment Successful",
-      description: `You have successfully invested in ${tokensToInvest} tokens of ${property?.name}`,
-      status: "success",
-      duration: 5000,
-      isClosable: true,
-    });
+    // Encontrar o primeiro token NFT disponível para o imóvel que NÃO pertence ao usuário logado
+    const token = nftTokens.length > 0
+      ? nftTokens.find(t => t.owner_user_id !== userIdNum)
+      : null;
+    if (!token || !property) {
+      toast({
+        title: 'No NFT tokens available for investment',
+        description: 'Todos os tokens disponíveis pertencem a você. Não é possível investir neste imóvel.',
+        status: 'error',
+        duration: 4000,
+        isClosable: true,
+      });
+      return;
+    }
+    const pricePerToken = tokenPriceNum || property.price / totalTokensNum;
+    navigate(`/payment/${property.id}/${token.id}/${tokensToInvestNum}/${pricePerToken}`);
     onClose();
   };
 
@@ -109,6 +150,111 @@ export const AssetDetails = () => {
       maximumFractionDigits: 0
     }).format(amount);
   };
+
+  // Garantir que property.id e user.id são number
+  const propertyIdNum = typeof property?.id === 'string' ? parseInt(property.id, 10) : property?.id ?? 0;
+  const userIdNum = typeof user?.id === 'string' ? parseInt(user.id, 10) : user?.id ?? 0;
+
+  // Função para criar tokens NFT restantes
+  const handleCreateTokens = async () => {
+    if (!property || !user) return;
+    setCreatingTokens(true);
+    try {
+      const total = typeof property.totalTokens === 'string' ? parseInt(property.totalTokens, 10) : property.totalTokens;
+      const criados = nftTokens.length;
+      const faltam = total - criados;
+      const tokensCriados: RWANFTToken[] = [];
+      for (let i = 0; i < faltam; i++) {
+        const token_identifier = `${propertyIdNum}-${criados + i + 1}`;
+        const novo = await tokenService.create({
+          rwa_id: propertyIdNum,
+          token_identifier,
+          owner_user_id: userIdNum,
+          metadata_uri: ''
+        });
+        tokensCriados.push(novo);
+      }
+      setNftTokens(prev => [...prev, ...tokensCriados]);
+      toast({
+        title: 'Tokens NFT criados com sucesso!',
+        status: 'success',
+        duration: 4000,
+        isClosable: true,
+      });
+    } catch (err) {
+      toast({
+        title: 'Erro ao criar tokens NFT',
+        status: 'error',
+        duration: 4000,
+        isClosable: true,
+      });
+    } finally {
+      setCreatingTokens(false);
+    }
+  };
+
+  // Handler para abrir modal de edição
+  const handleEditToken = (token: RWANFTToken) => {
+    setTokenToEdit(token);
+    setEditMetadataUri(token.metadata_uri || '');
+  };
+
+  // Handler para salvar edição
+  const handleSaveEdit = async () => {
+    if (!tokenToEdit) return;
+    setIsEditing(true);
+    try {
+      const updated = await tokenService.update(tokenToEdit.id, { metadata_uri: editMetadataUri });
+      setNftTokens(tokens => tokens.map(t => t.id === updated.id ? { ...t, metadata_uri: updated.metadata_uri } : t));
+      setTokenToEdit(null);
+      toast({ title: 'Token atualizado!', status: 'success', duration: 3000 });
+    } catch (err) {
+      toast({ title: 'Erro ao editar token', status: 'error', duration: 3000 });
+    } finally {
+      setIsEditing(false);
+    }
+  };
+
+  // Handler para abrir confirmação de exclusão
+  const openDeleteDialog = (token: RWANFTToken) => setTokenToDelete(token);
+  // Handler para cancelar exclusão
+  const closeDeleteDialog = () => setTokenToDelete(null);
+  // Handler para excluir token
+  const handleDeleteToken = async () => {
+    if (!tokenToDelete) return;
+    setIsDeleting(true);
+    try {
+      await tokenService.delete(tokenToDelete.id);
+      setNftTokens(tokens => tokens.filter(t => t.id !== tokenToDelete.id));
+      setTokenToDelete(null);
+      toast({ title: 'Token excluído!', status: 'success', duration: 3000 });
+    } catch (err) {
+      toast({ title: 'Erro ao excluir token', status: 'error', duration: 3000 });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Memoize valores computados
+  const isOwner = !!user && property && (
+    user.id?.toString() === property.owner?.toString()
+  );
+
+  const totalTokensNum = typeof property?.totalTokens === 'string' ? parseInt(property.totalTokens, 10) : property?.totalTokens ?? 0;
+
+  const availableTokensNum = useMemo(() => {
+    return typeof property?.availableTokens === 'string' 
+      ? parseInt(property.availableTokens, 10) 
+      : property?.availableTokens ?? 0;
+  }, [property?.availableTokens]);
+
+  const tokenPriceNum = useMemo(() => {
+    return typeof property?.metadata?.tokenPrice === 'string' 
+      ? parseFloat(property.metadata.tokenPrice) 
+      : property?.metadata?.tokenPrice ?? 0;
+  }, [property?.metadata?.tokenPrice]);
+
+  const tokensToInvestNum = typeof tokensToInvest === 'string' ? parseInt(tokensToInvest, 10) : tokensToInvest ?? 1;
 
   if (loading) {
     return (
@@ -129,6 +275,7 @@ export const AssetDetails = () => {
   }
 
   if (!property) {
+    console.warn('Property está undefined ou null! property:', property);
     return <Box p={8}>Property not found</Box>;
   }
 
@@ -136,10 +283,6 @@ export const AssetDetails = () => {
   console.log('Dados completos do usuário:', user);
   console.log('ID do usuário:', user?.id);
   console.log('ID do proprietário da propriedade:', property.owner);
-  
-  // Verifica se o usuário está autenticado e se os IDs correspondem
-  const isOwner = user && user.id && property.owner && 
-                 user.id.toString() === property.owner.toString();
   
   console.log('É proprietário?', isOwner);
 
@@ -179,13 +322,11 @@ export const AssetDetails = () => {
                         id: property.id,
                         name: property.name,
                         gps_coordinates: property.metadata.gpsCoordinates,
-                        country: (property.metadata.country ?? '') as string,
                         images: property.metadata.images ?? [],
                         currentValue: property.price,
                         totalTokens: property.totalTokens,
                         availableTokens: property.availableTokens,
                         description: property.description,
-                        city: (property.metadata.city ?? '') as string,
                       } as any}
                       mapHeight="400px"
                       mapZoom={15}
@@ -268,13 +409,11 @@ export const AssetDetails = () => {
                     id: property.id,
                     name: property.name,
                     gps_coordinates: property.metadata.gpsCoordinates,
-                    country: (property.metadata.country ?? '') as string,
                     images: property.metadata.images ?? [],
                     currentValue: property.price,
                     totalTokens: property.totalTokens,
                     availableTokens: property.availableTokens,
                     description: property.description,
-                    city: (property.metadata.city ?? '') as string,
                   } as any}
                   mapHeight="60px"
                   mapZoom={12}
@@ -312,12 +451,12 @@ export const AssetDetails = () => {
               
               <HStack spacing={2}>
                 <FaCoins />
-                <Text>Total Tokens: {property.totalTokens}</Text>
+                <Text>Total Tokens: {totalTokensNum}</Text>
               </HStack>
               
               <HStack spacing={2}>
                 <FaCoins />
-                <Text>Available Tokens: {property.availableTokens}</Text>
+                <Text>Available Tokens: {availableTokensNum}</Text>
               </HStack>
             </SimpleGrid>
             
@@ -394,6 +533,25 @@ export const AssetDetails = () => {
                 </TabPanel>
               </TabPanels>
             </Tabs>
+
+            {/* BOTÃO DE CRIAR TOKENS NFT (apenas para o dono e se faltar tokens) */}
+            {isOwner && nftTokens.length < totalTokensNum && (
+              <Button
+                colorScheme="green"
+                size="md"
+                mb={4}
+                isLoading={creatingTokens}
+                onClick={handleCreateTokens}
+                disabled={creatingTokens}
+              >
+                Criar {totalTokensNum - nftTokens.length} tokens NFT
+              </Button>
+            )}
+
+            {/* BOTÃO PARA ABRIR MODAL DE TOKENS NFT */}
+            <Button colorScheme="blue" size="sm" mb={4} onClick={() => setShowTokensModal(true)}>
+              Ver tokens NFT
+            </Button>
           </Box>
         </GridItem>
         
@@ -419,7 +577,7 @@ export const AssetDetails = () => {
               <Stat>
                 <StatLabel>Token Price</StatLabel>
                 <StatNumber color="accent.500">
-                  {formatCurrency(property.metadata.tokenPrice || property.price / property.totalTokens)}
+                  {formatCurrency(tokenPriceNum || property.price / totalTokensNum)}
                 </StatNumber>
                 <StatHelpText>per token</StatHelpText>
               </Stat>
@@ -430,12 +588,12 @@ export const AssetDetails = () => {
             <VStack spacing={4} mb={6} align="stretch">
               <Flex justify="space-between">
                 <Text>Total Tokens</Text>
-                <Text fontWeight="bold">{property.totalTokens}</Text>
+                <Text fontWeight="bold">{totalTokensNum}</Text>
               </Flex>
               
               <Flex justify="space-between">
                 <Text>Available Tokens</Text>
-                <Text fontWeight="bold">{property.availableTokens}</Text>
+                <Text fontWeight="bold">{availableTokensNum}</Text>
               </Flex>
               
               <Flex justify="space-between">
@@ -451,7 +609,7 @@ export const AssetDetails = () => {
               variant="primary"
               size="lg"
               onClick={onOpen}
-              isDisabled={!user?.isConnected || property.availableTokens === 0 || property.status !== 'active'}
+              isDisabled={!user?.isConnected || availableTokensNum === 0 || property.status !== 'active'}
               mb={4}
             >
               Invest Now
@@ -460,7 +618,7 @@ export const AssetDetails = () => {
             <Text fontSize="sm" color="text.dim" textAlign="center">
               {!user?.isConnected 
                 ? "Connect your wallet to invest" 
-                : property.availableTokens === 0 
+                : availableTokensNum === 0 
                 ? "No tokens available for investment" 
                 : property.status !== 'active'
                 ? "This property is not active for investment"
@@ -492,9 +650,9 @@ export const AssetDetails = () => {
               <FormLabel>Number of Tokens</FormLabel>
               <NumberInput 
                 min={1} 
-                max={property.availableTokens} 
-                value={tokensToInvest}
-                onChange={(value) => setTokensToInvest(parseInt(value))}
+                max={availableTokensNum} 
+                value={tokensToInvestNum}
+                onChange={(value) => setTokensToInvest(typeof value === 'string' ? parseInt(value, 10) : value)}
               >
                 <NumberInputField />
               </NumberInput>
@@ -504,12 +662,12 @@ export const AssetDetails = () => {
             
             <Flex justify="space-between" mb={2}>
               <Text>Price per Token</Text>
-              <Text>{formatCurrency(property.metadata.tokenPrice || property.price / property.totalTokens)}</Text>
+              <Text>{formatCurrency(tokenPriceNum || property.price / totalTokensNum)}</Text>
             </Flex>
             
             <Flex justify="space-between" fontWeight="bold">
               <Text>Total Investment</Text>
-              <Text>{formatCurrency((property.metadata.tokenPrice || property.price / property.totalTokens) * tokensToInvest)}</Text>
+              <Text>{formatCurrency((tokenPriceNum || property.price / totalTokensNum) * tokensToInvestNum)}</Text>
             </Flex>
           </ModalBody>
           
@@ -523,6 +681,121 @@ export const AssetDetails = () => {
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {/* MODAL DE TOKENS NFT */}
+      <Modal isOpen={showTokensModal} onClose={() => setShowTokensModal(false)} size="xl">
+        <ModalOverlay />
+        <ModalContent bg="white" color="black">
+          <ModalHeader>Tokens NFT deste imóvel</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            {loadingTokens ? (
+              <Spinner size="sm" />
+            ) : nftTokens.length === 0 ? (
+              <Text color="gray.500">Nenhum token NFT criado ainda.</Text>
+            ) : (
+              <Stack spacing={4}>
+                {nftTokens.map(token => (
+                  <Flex
+                    key={token.id}
+                    align="center"
+                    justify="space-between"
+                    p={4}
+                    borderRadius="md"
+                    boxShadow="md"
+                    bg="gray.50"
+                    border="1px solid"
+                    borderColor="gray.200"
+                  >
+                    <Box>
+                      <Text fontWeight="bold" fontSize="lg" color="accent.500">
+                        Token: {token.token_identifier}
+                      </Text>
+                      <Text fontSize="xs" color="gray.600">
+                        ID: {token.id}
+                      </Text>
+                    </Box>
+                    <Box textAlign="right">
+                      <Text fontSize="sm" color="gray.700">
+                        <b>Dono:</b> {token.owner_user_id}
+                      </Text>
+                      <Text fontSize="xs" color="gray.500">
+                        Criado em: {new Date(token.created_at).toLocaleString('pt-BR')}
+                      </Text>
+                      {isOwner && (
+                        <Flex gap={2} mt={2} justify="flex-end">
+                          <IconButton
+                            aria-label="Editar token"
+                            icon={<FaEdit />}
+                            size="sm"
+                            colorScheme="blue"
+                            onClick={() => handleEditToken(token)}
+                          />
+                          <IconButton
+                            aria-label="Excluir token"
+                            icon={<FaTrash />}
+                            size="sm"
+                            colorScheme="red"
+                            onClick={() => openDeleteDialog(token)}
+                          />
+                        </Flex>
+                      )}
+                    </Box>
+                  </Flex>
+                ))}
+              </Stack>
+            )}
+          </ModalBody>
+        </ModalContent>
+      </Modal>
+
+      {/* MODAL DE EDIÇÃO DE TOKEN */}
+      <Modal isOpen={!!tokenToEdit} onClose={() => setTokenToEdit(null)}>
+        <ModalOverlay />
+        <ModalContent bg="white" color="black">
+          <ModalHeader>Editar Token NFT</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <FormControl>
+              <FormLabel>Metadata URI</FormLabel>
+              <NumberInput value={editMetadataUri} onChange={v => setEditMetadataUri(v)}>
+                <NumberInputField />
+              </NumberInput>
+            </FormControl>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={() => setTokenToEdit(null)}>
+              Cancelar
+            </Button>
+            <Button colorScheme="blue" onClick={handleSaveEdit} isLoading={isEditing}>
+              Salvar
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* ALERTA DE CONFIRMAÇÃO DE EXCLUSÃO */}
+      <AlertDialog
+        isOpen={!!tokenToDelete}
+        leastDestructiveRef={cancelRef}
+        onClose={closeDeleteDialog}
+      >
+        <AlertDialogOverlay />
+        <AlertDialogContent>
+          <AlertDialogHeader>Excluir Token NFT</AlertDialogHeader>
+          <AlertDialogBody>
+            Tem certeza que deseja excluir este token NFT? Essa ação não pode ser desfeita.
+          </AlertDialogBody>
+          <AlertDialogFooter>
+            <Button ref={cancelRef} onClick={closeDeleteDialog}>
+              Cancelar
+            </Button>
+            <Button colorScheme="red" onClick={handleDeleteToken} ml={3} isLoading={isDeleting}>
+              Excluir
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Container>
   );
 }; 

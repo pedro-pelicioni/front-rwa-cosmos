@@ -7,6 +7,7 @@ import { tokenService } from '../services/tokenService';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { imageService } from '../services/imageService';
 import { apiClient } from '../api/client';
+import { getImageCookie, setImageCookie } from '../utils/imageCookieCache';
 
 export const UserDashboard = () => {
   const { user, handleConnect, isLoading } = useAuth();
@@ -44,7 +45,14 @@ export const UserDashboard = () => {
       await Promise.all(myProps.map(async (property) => {
         const images = await imageService.getByRWAId(Number(property.id));
         if (images.length > 0) {
-          imagesObj[property.id] = images[0].image_data || images[0].file_path || images[0].cid_link || '';
+          const img = images[0];
+          const cacheKey = `rwa_image_${property.id}_${img.id}`;
+          let url = getImageCookie(cacheKey);
+          if (!url) {
+            url = img.image_data || img.file_path || img.cid_link || '';
+            setImageCookie(cacheKey, url);
+          }
+          imagesObj[property.id] = url;
         }
       }));
       setPropertyImages(imagesObj);
