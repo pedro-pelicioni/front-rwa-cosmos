@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
-import { Box, Spinner, Select, Text, Slider, SliderTrack, SliderFilledTrack, SliderThumb, NumberInput, NumberInputField, Flex, Image, Button, useDisclosure, IconButton, Stack } from '@chakra-ui/react';
+import { Box, Spinner, Select, Text, Slider, SliderTrack, SliderFilledTrack, SliderThumb, NumberInput, NumberInputField, NumberInputStepper, NumberIncrementStepper, NumberDecrementStepper, Flex, Image, Button, useDisclosure, IconButton, Stack } from '@chakra-ui/react';
 import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -397,6 +397,7 @@ type LatamMapProps = {
   mapHeight?: string;
   mapZoom?: number;
   mapInteractive?: boolean;
+  onValueChange?: (value: number) => void;
 };
 
 export function LatamMap({
@@ -405,6 +406,7 @@ export function LatamMap({
   mapHeight = '300px',
   mapZoom = 15,
   mapInteractive = false,
+  onValueChange,
 }: LatamMapProps) {
   const [assets, setAssets] = useState<RWA[]>([]);
   const [loading, setLoading] = useState(true);
@@ -418,6 +420,7 @@ export function LatamMap({
   const [panToPosition, setPanToPosition] = useState<[number, number] | null>(null);
   const [panToTrigger, setPanToTrigger] = useState(0);
   const navigate = useNavigate();
+  const [value, setValue] = useState<number>(0);
 
   useEffect(() => {
     const fetchAssets = async () => {
@@ -495,6 +498,12 @@ export function LatamMap({
 
   const handleViewDetails = (asset: RWA) => {
     navigate(`/assets/${asset.id}`);
+  };
+
+  const handleValueChange = (valueString: string) => {
+    const newValue = parseFloat(valueString);
+    setValue(newValue);
+    onValueChange?.(newValue);
   };
 
   // Se singleAsset, renderizar mapa focado apenas nele
@@ -580,32 +589,16 @@ export function LatamMap({
         <Flex align="center" gap={2} minW="200px">
           <Text color="gray.200" fontSize="sm">Token Price:</Text>
           <NumberInput
-            size="sm"
-            value={minPrice ?? ''}
-            onChange={(_, v) => setMinPrice(Number.isNaN(v) ? undefined : v)}
+            value={value}
             min={0}
-            max={maxPrice ?? undefined}
-            _placeholder="Min"
-            w="70px"
-            bg="rgba(255,255,255,0.08)"
-            color="white"
-            borderColor="#2a4365"
+            max={1000000}
+            onChange={handleValueChange}
           >
             <NumberInputField />
-          </NumberInput>
-          <Text color="gray.400">-</Text>
-          <NumberInput
-            size="sm"
-            value={maxPrice ?? ''}
-            onChange={(_, v) => setMaxPrice(Number.isNaN(v) ? undefined : v)}
-            min={minPrice ?? 0}
-            _placeholder="Max"
-            w="70px"
-            bg="rgba(255,255,255,0.08)"
-            color="white"
-            borderColor="#2a4365"
-          >
-            <NumberInputField />
+            <NumberInputStepper>
+              <NumberIncrementStepper />
+              <NumberDecrementStepper />
+            </NumberInputStepper>
           </NumberInput>
         </Flex>
       </Flex>

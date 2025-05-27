@@ -9,11 +9,11 @@ import {
   ModalFooter, NumberInput, NumberInputField,
   FormControl, FormLabel, useToast, Spinner, Stack, IconButton,
   AlertDialog, AlertDialogOverlay, AlertDialogContent, AlertDialogHeader,
-  AlertDialogBody, AlertDialogFooter
+  AlertDialogBody, AlertDialogFooter, Icon as ChakraIcon, IconProps
 } from '@chakra-ui/react';
 import { FaMapMarkerAlt, FaCalendarAlt, FaBuilding, FaCoins, FaFileAlt, FaUserAlt, FaEdit, FaTrash } from 'react-icons/fa';
 import { Property } from '../types/Property';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../hooks';
 import { useProperty } from '../hooks/useProperty';
 import { imageService } from '../services/imageService';
 import { RWAImage } from '../types/rwa';
@@ -21,19 +21,122 @@ import { LatamMap } from '../components/LatamMap';
 import { tokenService } from '../services/tokenService';
 import { RWANFTToken } from '../types/rwa';
 import { getImageFromIDB, setImageToIDB } from '../utils/imageIDBCache';
+import { useRWATokens } from '../hooks/useRWATokens';
+import { marketplaceService } from '../services/marketplaceService';
+import { apiClient } from '../api/client';
+
+// Hook customizado para gerenciar o carregamento do asset
+const useAssetLoader = (id: string | undefined) => {
+  const [state, setState] = useState({
+    property: null as Property | null,
+    images: [] as RWAImage[],
+    isLoading: true,
+    error: null as string | null,
+    isInitialLoad: true
+  });
+
+  const isMounted = useRef(true);
+  const abortController = useRef<AbortController | null>(null);
+  const retryCount = useRef(0);
+  const MAX_RETRIES = 3;
+
+  const fetchData = useCallback(async () => {
+    if (!id) return;
+
+    // Cancela requisição anterior se existir
+    if (abortController.current) {
+      abortController.current.abort();
+    }
+    abortController.current = new AbortController();
+
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
+
+    try {
+      // Busca o property
+      const response = await apiClient.get(`/api/rwa/${id}`, {
+        signal: abortController.current.signal
+      });
+      
+      if (!isMounted.current) return;
+
+      const propertyData = response.data?.data || response.data;
+      
+      // Busca as imagens
+      const images = await imageService.getByRWAId(parseInt(id, 10));
+      
+      if (!isMounted.current) return;
+
+      // Atualiza o estado com todos os dados
+      setState({
+        property: {
+          ...propertyData,
+          metadata: {
+            ...propertyData.metadata,
+            images: images.map(img => img.image_data || img.file_path || img.cid_link || '')
+          }
+        },
+        images,
+        isLoading: false,
+        error: null,
+        isInitialLoad: false
+      });
+
+      // Reseta o contador de retry em caso de sucesso
+      retryCount.current = 0;
+
+    } catch (err: any) {
+      if (!isMounted.current) return;
+      
+      // Ignora erros de cancelamento
+      if (err.name === 'CanceledError' || err.message === 'canceled') {
+        return;
+      }
+
+      // Tenta novamente se não excedeu o limite de retries
+      if (retryCount.current < MAX_RETRIES) {
+        retryCount.current += 1;
+        setTimeout(fetchData, 1000 * retryCount.current); // Backoff exponencial
+        return;
+      }
+
+      console.error('[useAssetLoader] Erro após tentativas:', err);
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: 'Erro ao carregar detalhes do imóvel',
+        isInitialLoad: false
+      }));
+    }
+  }, [id]);
+
+  useEffect(() => {
+    isMounted.current = true;
+    retryCount.current = 0;
+    fetchData();
+
+    return () => {
+      isMounted.current = false;
+      if (abortController.current) {
+        abortController.current.abort();
+      }
+    };
+  }, [fetchData]);
+
+  return state;
+};
 
 export const AssetDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const toast = useToast();
-  const { user } = useAuth();
-  const { getById, loading, error } = useProperty();
-  const [property, setProperty] = useState<Property | null>(null);
+  const { user, isAuthenticated } = useAuth();
+  
+  // Usa o hook customizado para carregar os dados
+  const { property, images, isLoading, error, isInitialLoad } = useAssetLoader(id);
+  
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [tokensToInvest, setTokensToInvest] = useState(1);
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const [propertyImages, setPropertyImages] = useState<RWAImage[]>([]);
-  const [loadingImages, setLoadingImages] = useState(false);
   const [nftTokens, setNftTokens] = useState<RWANFTToken[]>([]);
   const [loadingTokens, setLoadingTokens] = useState(false);
   const [creatingTokens, setCreatingTokens] = useState(false);
@@ -44,83 +147,48 @@ export const AssetDetails = () => {
   const [editMetadataUri, setEditMetadataUri] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const cancelRef = useRef<HTMLButtonElement>(null);
-  const isMounted = useRef(true);
-
-  // Função para buscar imagens com cache global
-  const fetchImagesWithCache = useCallback(async (rwaId: number) => {
-    setLoadingImages(true);
-    try {
-      const images = await imageService.getByRWAId(rwaId);
-      setPropertyImages(images);
-      const imageUrls = images.map(img => img.image_data || img.file_path || img.cid_link || '');
-      setProperty(prev => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          metadata: {
-            ...prev.metadata,
-            images: imageUrls
-          }
-        };
-      });
-    } catch (err) {
-      console.error('Erro ao buscar imagens da propriedade:', err);
-    } finally {
-      setLoadingImages(false);
-    }
-  }, []);
-
-  // Função para buscar propriedade
-  const fetchProperty = useCallback(async () => {
-    if (!id) return;
-    try {
-      const data = await getById(id);
-      console.log('Propriedade recebida do serviço:', data);
-      setProperty(data);
-      console.log('Propriedade setada no state:', data);
-      const rwaId = parseInt(id, 10);
-      await fetchImagesWithCache(rwaId);
-    } catch (err) {
-      console.error('Erro ao buscar detalhes da propriedade:', err);
-      navigate('/assets');
-      toast({
-        title: "Property not found",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-    }
-  }, [id, getById, navigate, toast, fetchImagesWithCache]);
-
-  // Efeito principal
-  useEffect(() => {
-    if (!id) return;
-    fetchProperty();
-
-    return () => {
-      isMounted.current = false;
-    };
-  }, [id, fetchProperty]);
+  const { getOwnershipHistory } = useRWATokens();
+  const [selectedTokenId, setSelectedTokenId] = useState<number | null>(null);
+  const [ownershipHistory, setOwnershipHistory] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const { isOpen: isHistoryOpen, onOpen: onHistoryOpen, onClose: onHistoryClose } = useDisclosure();
+  const [marketplaceListings, setMarketplaceListings] = useState<any[]>([]);
 
   // Buscar tokens NFT do asset
   useEffect(() => {
     if (!property?.id) return;
+    
     const fetchTokens = async () => {
       setLoadingTokens(true);
       try {
         const response = await tokenService.getByRWAId(
           typeof property.id === 'string' ? parseInt(property.id, 10) : property.id
         );
-        // Garante que nftTokens sempre será um array
-        const tokens = Array.isArray(response) ? response : [];
-        setNftTokens(tokens);
+        setNftTokens(Array.isArray(response) ? response : []);
       } catch (err) {
+        console.error('[fetchTokens] Erro:', err);
         setNftTokens([]);
       } finally {
         setLoadingTokens(false);
       }
     };
     fetchTokens();
+  }, [property?.id]);
+
+  // Buscar vendas ativas do marketplace
+  useEffect(() => {
+    if (!property?.id) return;
+    
+    const fetchListings = async () => {
+      try {
+        const res = await marketplaceService.listAvailable();
+        setMarketplaceListings(res.data || []);
+      } catch (err) {
+        console.error('[fetchListings] Erro:', err);
+        setMarketplaceListings([]);
+      }
+    };
+    fetchListings();
   }, [property?.id]);
 
   const handleInvestment = () => {
@@ -138,7 +206,7 @@ export const AssetDetails = () => {
       });
       return;
     }
-    const pricePerToken = tokenPriceNum || property.price / totalTokensNum;
+    const pricePerToken = tokenPriceNum || (property.currentValue ?? property.price ?? 0) / totalTokensNum;
     navigate(`/payment/${property.id}/${token.id}/${tokensToInvestNum}/${pricePerToken}`);
     onClose();
   };
@@ -160,7 +228,7 @@ export const AssetDetails = () => {
     if (!property || !user) return;
     setCreatingTokens(true);
     try {
-      const total = typeof property.totalTokens === 'string' ? parseInt(property.totalTokens, 10) : property.totalTokens;
+      const total = typeof property.totalTokens === 'string' ? parseInt(property.totalTokens, 10) : property.totalTokens ?? 0;
       const criados = nftTokens.length;
       const faltam = total - criados;
       const tokensCriados: RWANFTToken[] = [];
@@ -256,11 +324,38 @@ export const AssetDetails = () => {
 
   const tokensToInvestNum = typeof tokensToInvest === 'string' ? parseInt(tokensToInvest, 10) : tokensToInvest ?? 1;
 
-  if (loading) {
+  // Handler para abrir modal de histórico de transferência
+  const handleShowHistory = async (tokenId: number) => {
+    setSelectedTokenId(tokenId);
+    setLoadingHistory(true);
+    onHistoryOpen();
+    try {
+      // Busca o histórico de transferência do token pelo endpoint correto
+      console.log('[handleShowHistory] Buscando histórico para token:', tokenId);
+      const res = await apiClient.get(`/api/rwa/ownership-history/token/${tokenId}`);
+      const history = res.data || [];
+      setOwnershipHistory(history);
+      console.log('[handleShowHistory] Histórico carregado:', history);
+    } catch (e) {
+      setOwnershipHistory([]);
+      console.error('[handleShowHistory] Erro ao buscar histórico:', e);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  // LOGS INTELIGENTES E VARIÁVEL AUXILIAR PARA IMAGENS
+  const imagesLength = property?.metadata?.images ? property.metadata.images.length : 0;
+  console.log('[render] imagesLength:', imagesLength);
+  console.log('[render] property.metadata:', property?.metadata);
+  console.log('[render] property:', property);
+
+  // Renderização condicional otimizada
+  if (isInitialLoad && isLoading) {
     return (
       <Box p={8} textAlign="center">
         <Spinner size="xl" color="accent.500" />
-        <Text mt={4}>Loading property details...</Text>
+        <Text mt={4}>Carregando detalhes do imóvel...</Text>
       </Box>
     );
   }
@@ -268,24 +363,28 @@ export const AssetDetails = () => {
   if (error) {
     return (
       <Box p={8} textAlign="center" color="red.500">
-        <Text>Error loading property: {error}</Text>
-        <Button mt={4} onClick={() => navigate('/assets')}>Back to Properties</Button>
+        <Text>{error}</Text>
+        <Button mt={4} onClick={() => navigate('/assets')}>Voltar para Imóveis</Button>
       </Box>
     );
   }
 
   if (!property) {
-    console.warn('Property está undefined ou null! property:', property);
-    return <Box p={8}>Property not found</Box>;
+    return (
+      <Box p={8} textAlign="center">
+        <Text>Imóvel não encontrado</Text>
+        <Button mt={4} onClick={() => navigate('/assets')}>Voltar para Imóveis</Button>
+      </Box>
+    );
   }
 
   // Logs detalhados para depuração
-  console.log('Dados completos do usuário:', user);
-  console.log('ID do usuário:', user?.id);
-  console.log('ID do proprietário da propriedade:', property.owner);
+  console.log('[render] Dados completos do property:', property);
+  console.log('[render] Dados completos do usuário:', user);
+  console.log('[render] ID do usuário:', user?.id);
+  console.log('[render] ID do proprietário da propriedade:', property.owner);
+  console.log('[render] É proprietário?', isOwner);
   
-  console.log('É proprietário?', isOwner);
-
   return (
     <Container maxW="container.xl" py={8}>
       <Grid templateColumns={{ base: "1fr", lg: "2fr 1fr" }} gap={8}>
@@ -293,7 +392,7 @@ export const AssetDetails = () => {
         <GridItem>
           {/* Property Image Gallery + Mapa */}
           <Box mb={6} position="relative" borderRadius="xl" overflow="hidden">
-            {loadingImages ? (
+            {isLoading ? (
               <Flex 
                 width="100%" 
                 height="400px" 
@@ -304,9 +403,9 @@ export const AssetDetails = () => {
                 <Spinner size="xl" color="accent.500" />
               </Flex>
             ) : (
-              activeImageIndex < property.metadata.images.length ? (
+              activeImageIndex < imagesLength ? (
                 <Image 
-                  src={property.metadata.images[activeImageIndex] || 'https://via.placeholder.com/800x400?text=No+Image'} 
+                  src={property.metadata?.images?.[activeImageIndex] || 'https://via.placeholder.com/800x400?text=No+Image'} 
                   alt={property.name}
                   width="100%"
                   height="400px"
@@ -314,18 +413,17 @@ export const AssetDetails = () => {
                   borderRadius="xl"
                 />
               ) : (
-                // Mostra o mapa como "imagem" final
-                property.metadata.gpsCoordinates && (
+                property.metadata?.gpsCoordinates && (
                   <Box width="100%" height="400px" borderRadius="xl" overflow="hidden">
                     <LatamMap
                       singleAsset={{
                         id: property.id,
                         name: property.name,
-                        gps_coordinates: property.metadata.gpsCoordinates,
-                        images: property.metadata.images ?? [],
-                        currentValue: property.price,
-                        totalTokens: property.totalTokens,
-                        availableTokens: property.availableTokens,
+                        gps_coordinates: property.metadata?.gpsCoordinates,
+                        images: property.metadata?.images ?? [],
+                        currentValue: property.currentValue ?? property.price ?? 0,
+                        totalTokens: property.totalTokens ?? 0,
+                        availableTokens: property.availableTokens ?? 0,
                         description: property.description,
                       } as any}
                       mapHeight="400px"
@@ -358,7 +456,7 @@ export const AssetDetails = () => {
                 left={4}
                 colorScheme="orange"
                 size="sm"
-                leftIcon={<FaEdit />}
+                leftIcon={<ChakraIcon as={FaEdit as any} color="#002D5B" />}
               >
                 Editar Propriedade
               </Button>
@@ -366,7 +464,7 @@ export const AssetDetails = () => {
           </Box>
           {/* Thumbnails: imagens + miniatura do mapa */}
           <Flex mb={8} gap={2} overflow="auto" pb={2}>
-            {property.metadata.images.length > 0 && property.metadata.images.map((img, idx) => (
+            {imagesLength > 0 && property.metadata?.images?.map((img, idx) => (
               <Box 
                 key={idx} 
                 width="80px" 
@@ -390,16 +488,16 @@ export const AssetDetails = () => {
               </Box>
             ))}
             {/* Miniatura do mapa */}
-            {property.metadata.gpsCoordinates && (
+            {property.metadata?.gpsCoordinates && (
               <Box
                 width="80px"
                 height="60px"
                 borderRadius="md"
                 overflow="hidden"
                 border="2px solid"
-                borderColor={activeImageIndex === property.metadata.images.length ? "accent.500" : "transparent"}
+                borderColor={activeImageIndex === imagesLength ? "accent.500" : "transparent"}
                 cursor="pointer"
-                onClick={() => setActiveImageIndex(property.metadata.images.length)}
+                onClick={() => setActiveImageIndex(imagesLength)}
                 transition="all 0.2s"
                 _hover={{ transform: 'scale(1.05)' }}
                 position="relative"
@@ -408,11 +506,11 @@ export const AssetDetails = () => {
                   singleAsset={{
                     id: property.id,
                     name: property.name,
-                    gps_coordinates: property.metadata.gpsCoordinates,
-                    images: property.metadata.images ?? [],
-                    currentValue: property.price,
-                    totalTokens: property.totalTokens,
-                    availableTokens: property.availableTokens,
+                    gps_coordinates: property.metadata?.gpsCoordinates,
+                    images: property.metadata?.images ?? [],
+                    currentValue: property.currentValue ?? property.price ?? 0,
+                    totalTokens: property.totalTokens ?? 0,
+                    availableTokens: property.availableTokens ?? 0,
                     description: property.description,
                   } as any}
                   mapHeight="60px"
@@ -420,7 +518,7 @@ export const AssetDetails = () => {
                   mapInteractive={false}
                 />
                 <Box position="absolute" top={1} right={1} bg="whiteAlpha.800" borderRadius="full" p={1} zIndex={2}>
-                  <FaMapMarkerAlt color="#002D5B" />
+                  <ChakraIcon as={FaMapMarkerAlt as any} color="#002D5B" />
                 </Box>
               </Box>
             )}
@@ -430,7 +528,7 @@ export const AssetDetails = () => {
           <Box mb={8}>
             <Heading as="h1" size="xl" mb={2}>{property.name}</Heading>
             <Flex align="center" color="text.dim" mb={4}>
-              <FaMapMarkerAlt />
+              <ChakraIcon as={FaMapMarkerAlt as any} color="#002D5B" />
               <Text ml={2}>{property.location}</Text>
             </Flex>
             
@@ -440,23 +538,31 @@ export const AssetDetails = () => {
             
             <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} mb={6}>
               <HStack spacing={2}>
-                <FaCalendarAlt />
-                <Text>Year Built: {property.metadata.yearBuilt || "N/A"}</Text>
+                <ChakraIcon as={FaCalendarAlt as any} color="#002D5B" />
+                <Text>
+                  Year Built: {property.yearBuilt ?? property.metadata?.yearBuilt ?? 'N/A'}
+                </Text>
               </HStack>
               
               <HStack spacing={2}>
-                <FaBuilding />
-                <Text>Size: {property.metadata.squareMeters || "N/A"} m²</Text>
+                <ChakraIcon as={FaBuilding as any} color="#002D5B" />
+                <Text>
+                  Size: {property.sizeM2 ?? property.metadata?.sizeM2 ?? property.metadata?.squareMeters ?? 'N/A'} m²
+                </Text>
               </HStack>
               
               <HStack spacing={2}>
-                <FaCoins />
-                <Text>Total Tokens: {totalTokensNum}</Text>
+                <ChakraIcon as={FaCoins as any} color="#002D5B" />
+                <Text>
+                  Total Tokens: {property.totalTokens ?? property.metadata?.totalTokens ?? 'N/A'}
+                </Text>
               </HStack>
               
               <HStack spacing={2}>
-                <FaCoins />
-                <Text>Available Tokens: {availableTokensNum}</Text>
+                <ChakraIcon as={FaCoins as any} color="#002D5B" />
+                <Text>
+                  Available Tokens: {property.availableTokens ?? property.metadata?.availableTokens ?? 'N/A'}
+                </Text>
               </HStack>
             </SimpleGrid>
             
@@ -473,7 +579,7 @@ export const AssetDetails = () => {
               <TabPanels>
                 <TabPanel>
                   <SimpleGrid columns={{ base: 2, md: 3 }} spacing={4}>
-                    {property.metadata.amenities?.map((amenity, idx) => (
+                    {property.metadata?.amenities?.map((amenity, idx) => (
                       <Tag key={idx} size="lg" bg="rgba(255,255,255,0.1)" color="text.light" borderRadius="full" py={2} px={4}>
                         {amenity}
                       </Tag>
@@ -496,7 +602,7 @@ export const AssetDetails = () => {
                           borderRadius="md"
                         >
                           <HStack>
-                            <FaBuilding />
+                            <ChakraIcon as={FaBuilding as any} color="#002D5B" />
                             <Box>
                               <Text fontWeight="bold">{facility.name}</Text>
                               <Text fontSize="sm" color="text.dim">{facility.type} - {facility.size_m2 || "N/A"}m²</Text>
@@ -515,10 +621,12 @@ export const AssetDetails = () => {
                 
                 <TabPanel>
                   <HStack spacing={4} mb={4}>
-                    <FaUserAlt size={24} />
+                    <ChakraIcon as={FaUserAlt as any} color="#002D5B" size={24} />
                     <Box>
                       <Text fontWeight="bold">Owner Address</Text>
-                      <Text color="text.dim">{property.owner}</Text>
+                      <Text color="text.dim">
+                        {property.owner?.email || property.owner?.walletAddress || property.owner?.id || '-'}
+                      </Text>
                     </Box>
                   </HStack>
                   
@@ -571,13 +679,15 @@ export const AssetDetails = () => {
             <SimpleGrid columns={2} spacing={4} mb={6}>
               <Stat>
                 <StatLabel>Property Value</StatLabel>
-                <StatNumber color="accent.500">{formatCurrency(property.price)}</StatNumber>
+                <StatNumber color="accent.500">
+                  {formatCurrency(property.currentValue ?? property.price ?? 0)}
+                </StatNumber>
               </Stat>
               
               <Stat>
                 <StatLabel>Token Price</StatLabel>
                 <StatNumber color="accent.500">
-                  {formatCurrency(tokenPriceNum || property.price / totalTokensNum)}
+                  {formatCurrency(tokenPriceNum || (property.currentValue ?? property.price ?? 0) / totalTokensNum)}
                 </StatNumber>
                 <StatHelpText>per token</StatHelpText>
               </Stat>
@@ -609,14 +719,14 @@ export const AssetDetails = () => {
               variant="primary"
               size="lg"
               onClick={onOpen}
-              isDisabled={!user?.isConnected || availableTokensNum === 0 || property.status !== 'active'}
+              isDisabled={!isAuthenticated || availableTokensNum === 0 || property.status !== 'active'}
               mb={4}
             >
               Invest Now
             </Button>
             
             <Text fontSize="sm" color="text.dim" textAlign="center">
-              {!user?.isConnected 
+              {!isAuthenticated 
                 ? "Connect your wallet to invest" 
                 : availableTokensNum === 0 
                 ? "No tokens available for investment" 
@@ -650,7 +760,7 @@ export const AssetDetails = () => {
               <FormLabel>Number of Tokens</FormLabel>
               <NumberInput 
                 min={1} 
-                max={availableTokensNum} 
+                max={availableTokensNum || 1} 
                 value={tokensToInvestNum}
                 onChange={(value) => setTokensToInvest(typeof value === 'string' ? parseInt(value, 10) : value)}
               >
@@ -662,12 +772,12 @@ export const AssetDetails = () => {
             
             <Flex justify="space-between" mb={2}>
               <Text>Price per Token</Text>
-              <Text>{formatCurrency(tokenPriceNum || property.price / totalTokensNum)}</Text>
+              <Text>{formatCurrency(tokenPriceNum || (property.currentValue ?? property.price ?? 0) / totalTokensNum)}</Text>
             </Flex>
             
             <Flex justify="space-between" fontWeight="bold">
               <Text>Total Investment</Text>
-              <Text>{formatCurrency((tokenPriceNum || property.price / totalTokensNum) * tokensToInvestNum)}</Text>
+              <Text>{formatCurrency((tokenPriceNum || (property.currentValue ?? property.price ?? 0) / totalTokensNum) * tokensToInvestNum)}</Text>
             </Flex>
           </ModalBody>
           
@@ -695,54 +805,71 @@ export const AssetDetails = () => {
               <Text color="gray.500">Nenhum token NFT criado ainda.</Text>
             ) : (
               <Stack spacing={4}>
-                {nftTokens.map(token => (
-                  <Flex
-                    key={token.id}
-                    align="center"
-                    justify="space-between"
-                    p={4}
-                    borderRadius="md"
-                    boxShadow="md"
-                    bg="gray.50"
-                    border="1px solid"
-                    borderColor="gray.200"
-                  >
-                    <Box>
-                      <Text fontWeight="bold" fontSize="lg" color="accent.500">
-                        Token: {token.token_identifier}
-                      </Text>
-                      <Text fontSize="xs" color="gray.600">
-                        ID: {token.id}
-                      </Text>
-                    </Box>
-                    <Box textAlign="right">
-                      <Text fontSize="sm" color="gray.700">
-                        <b>Dono:</b> {token.owner_user_id}
-                      </Text>
-                      <Text fontSize="xs" color="gray.500">
-                        Criado em: {new Date(token.created_at).toLocaleString('pt-BR')}
-                      </Text>
-                      {isOwner && (
-                        <Flex gap={2} mt={2} justify="flex-end">
-                          <IconButton
-                            aria-label="Editar token"
-                            icon={<FaEdit />}
-                            size="sm"
-                            colorScheme="blue"
-                            onClick={() => handleEditToken(token)}
-                          />
-                          <IconButton
-                            aria-label="Excluir token"
-                            icon={<FaTrash />}
-                            size="sm"
-                            colorScheme="red"
-                            onClick={() => openDeleteDialog(token)}
-                          />
-                        </Flex>
-                      )}
-                    </Box>
-                  </Flex>
-                ))}
+                {nftTokens.map(token => {
+                  // Busca o listing do marketplace para este token
+                  const listing = marketplaceListings.find(l => l.token?.id === token.id);
+                  return (
+                    <Flex
+                      key={token.id}
+                      align="center"
+                      justify="space-between"
+                      p={4}
+                      borderRadius="md"
+                      boxShadow="md"
+                      bg="gray.50"
+                      border="1px solid"
+                      borderColor="gray.200"
+                    >
+                      <Box>
+                        <Text fontWeight="bold" fontSize="lg" color="accent.500">
+                          Token: {token.token_identifier}
+                        </Text>
+                        <Text fontSize="xs" color="gray.600">
+                          ID: {token.id}
+                        </Text>
+                        {listing && (
+                          <>
+                            <Text fontSize="sm" color="green.700">
+                              <b>À venda!</b> Preço: ${listing.price_per_token} | Status: {listing.status}
+                            </Text>
+                            <Text fontSize="xs" color="gray.500">
+                              Quantidade disponível: {listing.quantity}
+                            </Text>
+                          </>
+                        )}
+                      </Box>
+                      <Box>
+                        <Text fontSize="sm" color="gray.700">
+                          <b>Dono:</b> {token.owner_user_id}
+                        </Text>
+                        <Text fontSize="xs" color="gray.500">
+                          Criado em: {new Date(token.created_at).toLocaleString('pt-BR')}
+                        </Text>
+                        <Button mt={2} size="xs" colorScheme="blue" onClick={() => handleShowHistory(token.id)}>
+                          Ver histórico de transferência
+                        </Button>
+                        {isOwner && (
+                          <Flex gap={2} mt={2} justify="flex-end">
+                            <IconButton
+                              aria-label="Editar token"
+                              icon={<ChakraIcon as={FaEdit as any} color="#002D5B" />}
+                              size="sm"
+                              colorScheme="blue"
+                              onClick={() => handleEditToken(token)}
+                            />
+                            <IconButton
+                              aria-label="Excluir token"
+                              icon={<ChakraIcon as={FaTrash as any} color="#002D5B" />}
+                              size="sm"
+                              colorScheme="red"
+                              onClick={() => openDeleteDialog(token)}
+                            />
+                          </Flex>
+                        )}
+                      </Box>
+                    </Flex>
+                  );
+                })}
               </Stack>
             )}
           </ModalBody>
@@ -796,6 +923,34 @@ export const AssetDetails = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* MODAL DE HISTÓRICO DE TRANSFERÊNCIA */}
+      <Modal isOpen={isHistoryOpen} onClose={onHistoryClose} isCentered>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Histórico de Transferência</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            {loadingHistory ? (
+              <Spinner />
+            ) : ownershipHistory.length === 0 ? (
+              <Text>Nenhum histórico encontrado para este token.</Text>
+            ) : (
+              <VStack align="stretch" spacing={2}>
+                {ownershipHistory.map((item, idx) => (
+                  <Box key={idx} p={2} borderWidth={1} borderRadius="md">
+                    <Text><b>De:</b> {item.from_user_id || '-'}</Text>
+                    <Text><b>Para:</b> {item.to_user_id || '-'}</Text>
+                    <Text><b>Data:</b> {item.transfer_date ? new Date(item.transfer_date).toLocaleString() : '-'}</Text>
+                    <Text><b>Quantidade:</b> {item.quantity || '-'}</Text>
+                    <Text><b>Tx Hash:</b> {item.tx_hash || '-'}</Text>
+                  </Box>
+                ))}
+              </VStack>
+            )}
+          </ModalBody>
+        </ModalContent>
+      </Modal>
     </Container>
   );
 }; 

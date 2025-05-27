@@ -36,17 +36,24 @@ import {
   AlertIcon,
   AlertTitle,
   AlertDescription,
-  CloseButton
+  CloseButton,
+  ButtonGroup,
+  Icon as ChakraIcon,
+  IconProps
 } from '@chakra-ui/react';
-import { FaDollarSign, FaPlus, FaTrash, FaUpload, FaImage } from 'react-icons/fa';
-import { useAuth } from '../hooks/useAuth';
+import { FaDollarSign, FaPlus, FaTrash, FaUpload } from 'react-icons/fa';
+import { useAuth } from '../hooks';
 import { useProperty } from '../hooks/useProperty';
 import { imageService } from '../services/imageService';
+import keplrIcon from '../constants/keplr-icon.webp';
+import metamaskIcon from '../constants/metamask-icon.png';
+import coinbaseIcon from '../constants/coinbase-icon.webp';
+import { WalletConnectModal } from '../components/WalletConnectModal';
 
 export const CreateProperty = () => {
   const navigate = useNavigate();
   const toast = useToast();
-  const { user } = useAuth();
+  const { user, isLoading, connect } = useAuth();
   const { create, loading, error } = useProperty();
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [formError, setFormError] = useState<string | null>(null);
@@ -388,7 +395,7 @@ export const CreateProperty = () => {
             <FormLabel>Property Value</FormLabel>
             <InputGroup>
               <InputLeftElement pointerEvents="none">
-                <FaDollarSign color="gray.300" />
+                <ChakraIcon as={FaDollarSign as any} color="gray.300" />
               </InputLeftElement>
               <NumberInput 
                 min={1} 
@@ -467,7 +474,7 @@ export const CreateProperty = () => {
             <HStack>
               <Button
                 as="label"
-                leftIcon={<FaUpload />}
+                leftIcon={<ChakraIcon as={FaUpload as any} />}
                 variant="outline"
                 isDisabled={uploadedImages.length >= 3}
               >
@@ -488,7 +495,7 @@ export const CreateProperty = () => {
                 <Box key={idx} position="relative">
                   <img src={src} alt={`preview-${idx}`} style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid #444' }} />
                   <Button size="xs" colorScheme="red" position="absolute" top={0} right={0} borderRadius="full" onClick={() => removeUploadedImg(idx)}>
-                    <FaTrash />
+                    <ChakraIcon as={FaTrash as any} />
                   </Button>
                 </Box>
               ))}
@@ -508,7 +515,7 @@ export const CreateProperty = () => {
               borderColor="bgGrid"
             />
             <Button 
-              leftIcon={<FaPlus />} 
+              leftIcon={<ChakraIcon as={FaPlus as any} />} 
               onClick={addDocument}
               variant="outline"
               px={8}
@@ -545,7 +552,7 @@ export const CreateProperty = () => {
               borderColor="bgGrid"
             />
             <Button 
-              leftIcon={<FaPlus />} 
+              leftIcon={<ChakraIcon as={FaPlus as any} />} 
               onClick={addAmenity}
               variant="outline"
               px={8}
@@ -590,35 +597,12 @@ export const CreateProperty = () => {
         </HStack>
       </VStack>
       
-      {/* Wallet connection modal (reusing the existing modal from elsewhere) */}
-      <Modal isOpen={isOpen} onClose={onClose} isCentered>
-        <ModalOverlay />
-        <ModalContent bg="primary.500" borderColor="bgGrid" borderWidth="1px">
-          <ModalHeader color="text.light">Choose Your Wallet</ModalHeader>
-          <ModalCloseButton color="text.light" />
-          <ModalBody pb={6}>
-            <VStack spacing={4}>
-              <Button
-                variant="primary"
-                size="lg"
-                width="100%"
-              >
-                Connect Keplr
-              </Button>
-              <Button
-                variant="primary"
-                size="lg"
-                width="100%"
-              >
-                Connect Noble
-              </Button>
-            </VStack>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <WalletConnectModal 
+        isOpen={isOpen} 
+        onClose={onClose} 
+        handleConnect={connect} 
+        isLoading={isLoading} 
+      />
     </Container>
   );
 }; 

@@ -1,11 +1,15 @@
 import { Box, Flex, IconButton, useDisclosure, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton, Button, ButtonGroup, useToast } from '@chakra-ui/react';
 import { HamburgerIcon } from '@chakra-ui/icons';
-import { useAuth } from '../hooks/useAuth.tsx';
+import { useAuth } from '../contexts/AuthContext';
+import keplrIcon from '../constants/keplr-icon.webp';
+import metamaskIcon from '../constants/metamask-icon.png';
+import coinbaseIcon from '../constants/coinbase-icon.webp';
+import { WalletConnectModal } from './WalletConnectModal';
 
 export const MenuLateral = () => {
   const { isOpen: isMenuOpen, onOpen: onMenuOpen, onClose: onMenuClose } = useDisclosure();
   const { isOpen: isWalletModalOpen, onOpen: onWalletModalOpen, onClose: onWalletModalClose } = useDisclosure();
-  const { user, handleConnect, handleDisconnect, isLoading } = useAuth();
+  const { user, connect, disconnect, isLoading } = useAuth();
   const toast = useToast();
 
   const handleOpenWalletModal = () => {
@@ -25,7 +29,7 @@ export const MenuLateral = () => {
         {user?.isConnected ? (
           <Button 
             colorScheme="red" 
-            onClick={handleDisconnect}
+            onClick={disconnect}
             isLoading={isLoading}
             loadingText="Desconectando..."
           >
@@ -43,41 +47,8 @@ export const MenuLateral = () => {
         )}
       </Flex>
 
-      <Modal isOpen={isWalletModalOpen} onClose={onWalletModalClose}>
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>Escolha sua Carteira</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody pb={6}>
-            <ButtonGroup spacing={4} display="flex" flexDirection="column">
-              <Button
-                colorScheme="purple"
-                size="lg"
-                onClick={() => {
-                  handleConnect('keplr');
-                  onWalletModalClose();
-                }}
-                mb={4}
-                isLoading={isLoading}
-                loadingText="Conectando..."
-              >
-                Conectar Keplr
-              </Button>
-              <Button
-                colorScheme="blue"
-                size="lg"
-                onClick={() => {
-                  handleConnect('noble');
-                  onWalletModalClose();
-                }}
-                isLoading={isLoading}
-                loadingText="Conectando..."
-              >
-                Conectar Noble
-              </Button>
-            </ButtonGroup>
-          </ModalBody>
-        </ModalContent>
+      <Modal isOpen={isWalletModalOpen} onClose={onWalletModalClose} isCentered>
+        <WalletConnectModal isOpen={isWalletModalOpen} onClose={onWalletModalClose} handleConnect={async (wallet) => { await connect(wallet); onWalletModalClose(); }} isLoading={isLoading} />
       </Modal>
     </Box>
   );

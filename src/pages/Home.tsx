@@ -1,71 +1,73 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Box, Heading, Text, Stack, Container, SimpleGrid, Button, Flex, Image, useInterval, SlideFade, Fade } from '@chakra-ui/react'
 import { Link as RouterLink } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import homeIllustration from '../assets/home-illustration.svg'
 import { useProperty } from '../hooks/useProperty';
 import { Property } from '../types/Property';
 import { imageService } from '../services/imageService';
 import { getImageCookie, setImageCookie } from '../utils/imageCookieCache';
+import { FALLBACK_IMAGES } from '../constants/images';
 
 export const Home = () => {
-  const { getAll, loading, error } = useProperty();
-  const [properties, setProperties] = useState<Property[]>([]);
-  const [propertyImages, setPropertyImages] = useState<{[key: string]: string}>({});
+  const { getAll } = useProperty();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [slides, setSlides] = useState<Property[][]>([]);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
-  useEffect(() => {
-    const fetchProperties = async () => {
-      try {
-        const data = await getAll();
-        // Limitar a 12 propriedades
-        const limitedData = data.slice(0, 12);
-        setProperties(limitedData);
-        
-        // Buscar a primeira imagem de cada propriedade
-        const imagesObj: {[key: string]: string} = {};
-        await Promise.all(limitedData.map(async (property) => {
-          const images = await imageService.getByRWAId(Number(property.id));
-          if (images.length > 0) {
-            const img = images[0];
+  const { data: properties = [], isLoading } = useQuery<Property[]>({
+    queryKey: ['properties'],
+    queryFn: getAll,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000
+  });
+
+  const { data: propertyImages = {} } = useQuery<{ [key: string]: string }>({
+    queryKey: ['propertyImages', properties.map(p => p.id)],
+    queryFn: async () => {
+      const images: { [key: string]: string } = {};
+      for (const property of properties) {
+        try {
+          const result = await imageService.getByRWAId(Number(property.id));
+          const urls = result.map(img => {
             const cacheKey = `rwa_image_${property.id}_${img.id}`;
             let url = getImageCookie(cacheKey);
             if (!url) {
               url = img.image_data || img.file_path || img.cid_link || '';
               setImageCookie(cacheKey, url);
             }
-            imagesObj[property.id] = url;
-          }
-        }));
-        setPropertyImages(imagesObj);
-
-        // Organizar propriedades em slides de 3
-        const slidesArray: Property[][] = [];
-        for (let i = 0; i < limitedData.length; i += 3) {
-          slidesArray.push(limitedData.slice(i, i + 3));
+            return url;
+          }).filter(Boolean);
+          images[property.id] = urls[0] || FALLBACK_IMAGES.PROPERTY;
+        } catch (err) {
+          images[property.id] = FALLBACK_IMAGES.PROPERTY;
         }
-        setSlides(slidesArray);
-      } catch (err) {
-        console.error('Erro ao buscar propriedades:', err);
       }
-    };
-    
-    fetchProperties();
-  }, [getAll]);
+      return images;
+    },
+    enabled: properties.length > 0,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000
+  });
 
-  // Mudar slide automaticamente a cada 5 segundos
+  useEffect(() => {
+    if (properties.length > 0) {
+      const itemsPerSlide = 3;
+      const newSlides = [];
+      for (let i = 0; i < properties.length; i += itemsPerSlide) {
+        newSlides.push(properties.slice(i, i + itemsPerSlide));
+      }
+      setSlides(newSlides);
+    }
+  }, [properties]);
+
   useInterval(() => {
-    if (slides.length > 0 && !isTransitioning) {
-      handleSlideChange((currentSlide + 1) % slides.length);
+    if (!isTransitioning && slides.length > 0) {
+      setIsTransitioning(true);
+      setCurrentSlide((prev) => (prev + 1) % slides.length);
+      setTimeout(() => setIsTransitioning(false), 500);
     }
   }, 5000);
-
-  const handleSlideChange = (newSlide: number) => {
-    setIsTransitioning(true);
-    setCurrentSlide(newSlide);
-    setTimeout(() => setIsTransitioning(false), 500); // Tempo da animação
-  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -175,13 +177,15 @@ export const Home = () => {
                     >
                       <Box height="200px" overflow="hidden">
                         <Image 
-                          src={propertyImages[property.id] || 'https://via.placeholder.com/400x300?text=No+Image'}
+                          src={propertyImages[property.id] || FALLBACK_IMAGES.PROPERTY}
                           alt={property.name}
                           width="100%"
                           height="100%"
                           objectFit="cover"
                           transition="transform 0.3s ease"
                           _hover={{ transform: 'scale(1.05)' }}
+                          borderRadius="md"
+                          fallbackSrc={FALLBACK_IMAGES.PROPERTY}
                         />
                       </Box>
                       
@@ -189,7 +193,7 @@ export const Home = () => {
                         <Heading size="md" mb={2}>{property.name}</Heading>
                         <Text color="text.dim" mb={2}>{property.location}</Text>
                         <Text fontWeight="bold" color="accent.500" fontSize="lg" mb={4}>
-                          {formatCurrency(property.price)}
+                          {formatCurrency(property.price ?? 0)}
                         </Text>
                         
                         <Button 
@@ -218,7 +222,7 @@ export const Home = () => {
                     borderRadius="full"
                     bg={currentSlide === index ? "accent.500" : "rgba(255,255,255,0.2)"}
                     cursor="pointer"
-                    onClick={() => handleSlideChange(index)}
+                    onClick={() => setCurrentSlide(index)}
                     transition="all 0.3s"
                     _hover={{ transform: 'scale(1.2)' }}
                   />

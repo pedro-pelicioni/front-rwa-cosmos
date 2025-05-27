@@ -1,186 +1,203 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { authService } from '../services/auth';
-import { useToast } from '@chakra-ui/react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useKeplr } from './useKeplr';
-import { useNoble } from './useNoble';
+import { apiClient } from '../api/client';
 
 interface User {
   id: string;
-  address: string;
-  walletType: 'keplr' | 'noble';
-  isConnected: boolean;
+  name: string;
+  email: string;
   role: string;
+  walletAddress: string;
+}
+
+interface AuthResponse {
+  user: User;
+  token: string;
 }
 
 interface AuthContextType {
   user: User | null;
-  setUser: (user: User | null) => void;
-  login: (userData: User, token: string) => void;
-  logout: () => void;
+  token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  handleConnect: (walletType: 'keplr' | 'noble') => Promise<void>;
-  handleDisconnect: () => Promise<void>;
+  error: string | null;
+  login: (email: string, password: string) => Promise<void>;
+  register: (userData: RegisterData) => Promise<void>;
+  logout: () => void;
+  connect: (walletType: string) => Promise<void>;
+  disconnect: () => Promise<void>;
+  updateUser: (userData: Partial<User>) => Promise<void>;
+  refreshToken: () => Promise<void>;
+}
+
+interface RegisterData {
+  name: string;
+  email: string;
+  password: string;
+  role: string;
+  walletAddress: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  console.log('[AuthProvider] Montando AuthProvider');
-  const [user, setUser] = useState<User | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [auth, setAuth] = useState<AuthResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const toast = useToast();
-  const keplr = useKeplr();
-  const noble = useNoble();
+  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const { keplr, isConnecting, error: keplrError, connectKeplr, disconnect: disconnectKeplr } = useKeplr();
 
   useEffect(() => {
-    // Verifica se há um token no localStorage ao iniciar
-    const token = authService.getToken();
-    if (token) {
-      setIsAuthenticated(true);
-    }
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
+    const storedAuth = localStorage.getItem('auth');
+    if (storedAuth) {
+      try {
+        const parsedAuth = JSON.parse(storedAuth);
+        setAuth(parsedAuth);
+        apiClient.defaults.headers.common['Authorization'] = `Bearer ${parsedAuth.token}`;
+      } catch (err) {
+        console.error('Error parsing stored auth:', err);
+        localStorage.removeItem('auth');
+      }
     }
     setIsLoading(false);
   }, []);
 
-  const login = (userData: User, token: string) => {
-    setUser(userData);
-    setIsAuthenticated(true);
-    authService.setToken(token);
+  const login = async (email: string, password: string) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await apiClient.post<AuthResponse>('/auth/login', { email, password });
+      const { user, token } = response.data;
+      setAuth({ user, token });
+      localStorage.setItem('auth', JSON.stringify({ user, token }));
+      apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      navigate('/dashboard');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Erro ao fazer login');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const register = async (userData: RegisterData) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await apiClient.post<AuthResponse>('/auth/register', userData);
+      const { user, token } = response.data;
+      setAuth({ user, token });
+      localStorage.setItem('auth', JSON.stringify({ user, token }));
+      apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      navigate('/dashboard');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Erro ao registrar usuário');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const logout = () => {
-    authService.logout();
-    setUser(null);
-    setIsAuthenticated(false);
+    setAuth(null);
+    localStorage.removeItem('auth');
+    delete apiClient.defaults.headers.common['Authorization'];
+    navigate('/login');
   };
 
-  const handleConnect = async (walletType: 'keplr' | 'noble') => {
+  const connect = async (walletType: string) => {
     try {
       setIsLoading(true);
-      console.log('[Auth] Iniciando conexão com carteira:', walletType);
-      toast({
-        title: 'Iniciando conexão',
-        description: `Conectando com a carteira ${walletType === 'keplr' ? 'Keplr' : 'Noble'}...`,
-        status: 'info',
-        duration: 3000,
-        isClosable: true,
-      });
-
-      let authResponse = null;
+      setError(null);
       if (walletType === 'keplr') {
-        authResponse = await keplr.connect();
-        console.log('[Auth] authResponse retornado do Keplr:', authResponse);
-      } else if (walletType === 'noble') {
-        authResponse = await noble.connect();
-        console.log('[Auth] authResponse retornado do Noble:', authResponse);
+        const address = await connectKeplr();
+        if (auth?.user) {
+          await updateUser({ walletAddress: address });
+        }
       }
-      if (!authResponse) {
-        throw new Error('Falha ao conectar com a carteira ' + walletType);
-      }
-      setUser({
-        id: authResponse.user.id.toString(),
-        address: authResponse.user.address,
-        walletType,
-        isConnected: true,
-        role: authResponse.user.role
-      });
-      authService.setToken(authResponse.token);
-      localStorage.setItem('user', JSON.stringify({
-        id: authResponse.user.id.toString(),
-        address: authResponse.user.address,
-        walletType,
-        isConnected: true,
-        role: authResponse.user.role
-      }));
-      console.log('[Auth] Usuário autenticado e salvo no contexto:', authResponse.user);
-
-      toast({
-        title: 'Autenticação concluída',
-        description: 'Você foi autenticado com sucesso!',
-        status: 'success',
-        duration: 5000,
-        isClosable: true,
-      });
-    } catch (error) {
-      console.error('[Auth] Erro na autenticação:', error);
-      toast({
-        title: 'Erro na autenticação',
-        description: 'Falha ao conectar com a carteira',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
+    } catch (err: any) {
+      setError(err.message || 'Erro ao conectar carteira');
+      throw err;
     } finally {
       setIsLoading(false);
-      console.log('[Auth] Fim do processo de conexão.');
     }
   };
 
-  const handleDisconnect = async () => {
+  const disconnect = async () => {
     try {
       setIsLoading(true);
-      toast({
-        title: 'Desconectando',
-        description: 'Desconectando sua carteira...',
-        status: 'info',
-        duration: 3000,
-        isClosable: true,
-      });
-      if (user?.walletType === 'keplr') {
-        await keplr.disconnect();
-      } else if (user?.walletType === 'noble') {
-        await noble.disconnect();
+      setError(null);
+      await disconnectKeplr();
+      if (auth?.user) {
+        await updateUser({ walletAddress: '' });
       }
-      setUser(null);
-      localStorage.removeItem('user');
-      toast({
-        title: 'Desconectado',
-        description: 'Você foi desconectado com sucesso',
-        status: 'success',
-        duration: 5000,
-        isClosable: true,
-      });
-    } catch (error) {
-      console.error('Erro ao desconectar:', error);
-      toast({
-        title: 'Erro ao desconectar',
-        description: 'Falha ao desconectar da carteira',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
+    } catch (err: any) {
+      setError(err.message || 'Erro ao desconectar carteira');
+      throw err;
     } finally {
       setIsLoading(false);
     }
   };
 
-  return (
-    <AuthContext.Provider 
-      value={{ 
-        user, 
-        setUser,
-        login,
-        logout,
-        isAuthenticated: !!user,
-        isLoading,
-        handleConnect,
-        handleDisconnect
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  const updateUser = async (userData: Partial<User>) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await apiClient.put<AuthResponse>(`/users/${auth?.user.id}`, userData);
+      const { user, token } = response.data;
+      setAuth({ user, token });
+      localStorage.setItem('auth', JSON.stringify({ user, token }));
+      apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Erro ao atualizar usuário');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const refreshToken = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await apiClient.post<AuthResponse>('/auth/refresh-token', {
+        token: auth?.token
+      });
+      const { user, token } = response.data;
+      setAuth({ user, token });
+      localStorage.setItem('auth', JSON.stringify({ user, token }));
+      apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Erro ao atualizar token');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const value = {
+    user: auth?.user || null,
+    token: auth?.token || null,
+    isAuthenticated: !!auth?.user,
+    isLoading,
+    error,
+    login,
+    register,
+    logout,
+    connect,
+    disconnect,
+    updateUser,
+    refreshToken
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-export const useAuth = () => {
+export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth deve ser usado dentro de um AuthProvider');
+    throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 } 

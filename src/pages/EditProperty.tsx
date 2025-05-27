@@ -43,20 +43,23 @@ import {
   TabList,
   Tab,
   TabPanels,
-  TabPanel
+  TabPanel,
+  Icon as ChakraIcon,
+  IconProps
 } from '@chakra-ui/react';
 import { FaDollarSign, FaPlus, FaTrash, FaUpload, FaImage } from 'react-icons/fa';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../hooks';
 import { useProperty } from '../hooks/useProperty';
 import { imageService } from '../services/imageService';
 import { RWAImage } from '../types/rwa';
 import { getImageCookie, setImageCookie } from '../utils/imageCookieCache';
+import { WalletConnectModal } from '../components/WalletConnectModal';
 
 export const EditProperty = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user, connect } = useAuth();
   const { getById, update, loading, error } = useProperty();
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [formError, setFormError] = useState<string | null>(null);
@@ -99,17 +102,17 @@ export const EditProperty = () => {
         
         // Preencher o formulário com os dados da propriedade
         setFormData({
-          name: property.name,
-          description: property.description,
-          location: property.location,
-          price: property.price.toString(),
-          totalTokens: property.totalTokens.toString(),
-          images: property.metadata.images || [],
-          documents: property.metadata.documents || [],
-          amenities: property.metadata.amenities || [],
-          yearBuilt: property.metadata.yearBuilt?.toString() || '',
-          squareMeters: property.metadata.squareMeters?.toString() || '',
-          gpsCoordinates: property.metadata.gpsCoordinates || '',
+          name: property.name || '',
+          description: property.description || '',
+          location: property.location || '',
+          price: property.price?.toString() || '',
+          totalTokens: property.totalTokens?.toString() || '',
+          images: property.metadata?.images || [],
+          documents: property.metadata?.documents || [],
+          amenities: property.metadata?.amenities || [],
+          yearBuilt: property.metadata?.yearBuilt?.toString() || '',
+          squareMeters: property.metadata?.squareMeters?.toString() || '',
+          gpsCoordinates: property.metadata?.gpsCoordinates || '',
         });
         
         // Buscar as imagens da propriedade
@@ -292,6 +295,18 @@ export const EditProperty = () => {
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!user) {
+      toast({
+        title: 'Erro',
+        description: 'Você precisa estar logado para editar uma propriedade.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+      return;
+    }
+    
     setFormError(null);
     setFieldErrors({});
     
@@ -456,20 +471,6 @@ export const EditProperty = () => {
     );
   }
 
-  if (!user?.isConnected) {
-    return (
-      <Container maxW="container.md" py={8}>
-        <VStack spacing={8} align="stretch">
-          <Heading>Connect Your Wallet</Heading>
-          <Text>You need to connect your wallet before editing a property.</Text>
-          <Button variant="primary" onClick={onOpen}>
-            Connect Wallet
-          </Button>
-        </VStack>
-      </Container>
-    );
-  }
-
   return (
     <Container maxW="container.md" py={8}>
       <VStack spacing={8} align="stretch" as="form" onSubmit={handleSubmit}>
@@ -558,7 +559,7 @@ export const EditProperty = () => {
                     <FormLabel>Property Value</FormLabel>
                     <InputGroup>
                       <InputLeftElement pointerEvents="none">
-                        <FaDollarSign color="gray.300" />
+                        <ChakraIcon as={FaDollarSign as any} color="gray.300" />
                       </InputLeftElement>
                       <NumberInput 
                         min={1} 
@@ -646,7 +647,7 @@ export const EditProperty = () => {
                         borderColor="bgGrid"
                       />
                       <Button 
-                        leftIcon={<FaPlus />} 
+                        leftIcon={<ChakraIcon as={FaPlus as any} />} 
                         onClick={addImage}
                         variant="outline"
                         px={8}
@@ -670,7 +671,7 @@ export const EditProperty = () => {
                         height="auto"
                       />
                       <Button
-                        leftIcon={<FaUpload />}
+                        leftIcon={<ChakraIcon as={FaUpload as any} />}
                         onClick={handleFileUpload}
                         variant="outline"
                         px={8}
@@ -717,7 +718,7 @@ export const EditProperty = () => {
                       borderRadius="md" 
                       textAlign="center"
                     >
-                      <FaImage size={40} style={{ margin: '0 auto 16px' }} />
+                      <ChakraIcon as={FaImage as any} size={40} style={{ margin: '0 auto 16px' }} />
                       <Text>Nenhuma imagem adicionada</Text>
                     </Box>
                   ) : (
@@ -745,7 +746,7 @@ export const EditProperty = () => {
                             p={2}
                           >
                             <IconButton
-                              icon={<FaTrash />}
+                              icon={<ChakraIcon as={FaTrash as any} />}
                               aria-label="Remove image"
                               size="sm"
                               colorScheme="red"
@@ -775,7 +776,7 @@ export const EditProperty = () => {
                       borderColor="bgGrid"
                     />
                     <Button 
-                      leftIcon={<FaPlus />} 
+                      leftIcon={<ChakraIcon as={FaPlus as any} />} 
                       onClick={addDocument}
                       variant="outline"
                       px={8}
@@ -812,7 +813,7 @@ export const EditProperty = () => {
                       borderColor="bgGrid"
                     />
                     <Button 
-                      leftIcon={<FaPlus />} 
+                      leftIcon={<ChakraIcon as={FaPlus as any} />} 
                       onClick={addAmenity}
                       variant="outline"
                       px={8}
@@ -861,35 +862,13 @@ export const EditProperty = () => {
         </HStack>
       </VStack>
       
-      {/* Wallet connection modal (reusing the existing modal from elsewhere) */}
-      <Modal isOpen={isOpen} onClose={onClose} isCentered>
-        <ModalOverlay />
-        <ModalContent bg="primary.500" borderColor="bgGrid" borderWidth="1px">
-          <ModalHeader color="text.light">Choose Your Wallet</ModalHeader>
-          <ModalCloseButton color="text.light" />
-          <ModalBody pb={6}>
-            <VStack spacing={4}>
-              <Button
-                variant="primary"
-                size="lg"
-                width="100%"
-              >
-                Connect Keplr
-              </Button>
-              <Button
-                variant="primary"
-                size="lg"
-                width="100%"
-              >
-                Connect Noble
-              </Button>
-            </VStack>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      {/* Wallet connection modal */}
+      <WalletConnectModal 
+        isOpen={isOpen} 
+        onClose={onClose} 
+        handleConnect={connect} 
+        isLoading={loading} 
+      />
     </Container>
   );
 }; 
