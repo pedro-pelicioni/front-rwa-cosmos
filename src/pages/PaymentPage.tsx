@@ -25,9 +25,10 @@ import {
   useBreakpointValue
 } from '@chakra-ui/react';
 import { useKeplr } from '../hooks/useKeplr';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../hooks';
 import { tokenService } from '../services/tokenService';
 import { rwaService } from '../services/rwaService';
+import { marketplaceService } from '../services/marketplaceService';
 import { apiClient } from '../api/client';
 
 export const PaymentPage = () => {
@@ -71,9 +72,9 @@ export const PaymentPage = () => {
       <Container centerContent py={10}>
         <Alert status="error">
           <AlertIcon />
-          <AlertTitle>Invalid parameters</AlertTitle>
+          <AlertTitle>Parâmetros inválidos</AlertTitle>
           <AlertDescription>
-            One or more parameters are invalid. Please go back and try again.
+            Um ou mais parâmetros são inválidos. Por favor, volte e tente novamente.
           </AlertDescription>
         </Alert>
       </Container>
@@ -84,7 +85,6 @@ export const PaymentPage = () => {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [assetInfo, setAssetInfo] = useState<any>(null);
-  const [sellerInfo, setSellerInfo] = useState<any>(null);
   const [tokenInfo, setTokenInfo] = useState<any>(null);
   const [saleInfo, setSaleInfo] = useState<any>(null);
   const [mainImage, setMainImage] = useState<string>('');
@@ -93,56 +93,47 @@ export const PaymentPage = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
+        
+        // Buscar listing do marketplace
+        const listings = await marketplaceService.listAvailable();
+        const listing = listings.data.find((l: any) => l.token?.id === tokenIdNum);
+        
+        if (!listing) {
+          setError('Token não encontrado ou não está disponível para venda');
+          return;
+        }
+
         // Buscar asset pelo rwaId
         const asset = await rwaService.getById(rwaIdNum);
         setAssetInfo(asset);
-        // Buscar todos os tokens do asset
-        const tokens = await tokenService.getByRWAId(asset.id);
-        const token = tokens.find((t: any) => t.id === tokenIdNum);
-        if (!token) {
-          setError('Token not found');
-          return;
-        }
-        setTokenInfo(token);
-        // Buscar imagens do imóvel pelo endpoint correto
-        let img = '';
+        setTokenInfo(listing.token);
+        setSaleInfo(listing);
+
+        // Buscar imagens do imóvel
         try {
           const imagesRes = await apiClient.get(`/api/rwa/images/rwa/${asset.id}`);
           const images = imagesRes.data;
           if (Array.isArray(images) && images.length > 0) {
-            img = images[0].cid_link || images[0].file_path || images[0].image_data || '';
+            setMainImage(images[0].cid_link || images[0].file_path || images[0].image_data || '');
           }
         } catch (e) {
           // fallback para asset.images ou asset.metadata.images
           const metaImages = Array.isArray(asset?.metadata?.images) ? asset.metadata.images : [];
           const assetImages = Array.isArray(asset?.images) ? asset.images : [];
           if (metaImages.length > 0) {
-            img = metaImages[0];
+            setMainImage(metaImages[0]);
           } else if (assetImages.length > 0) {
-            img = assetImages[0];
+            setMainImage(assetImages[0]);
+          } else {
+            setMainImage('https://placehold.co/280x160?text=No+Image');
           }
         }
-        setMainImage(img || 'https://placehold.co/280x160?text=No+Image');
-        // Buscar info do vendedor (KYC se possível), sempre autenticado se possível
-        let seller = null;
-        const authHeaders = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
-        try {
-          const kycRes = await apiClient.get(`/api/kyc/${token.owner_user_id}`, authHeaders);
-          seller = kycRes.data;
-        } catch (e) {
-          try {
-            const userRes = await apiClient.get(`/api/users/${token.owner_user_id}`, authHeaders);
-            seller = userRes.data;
-          } catch (e2) {
-            seller = null;
-          }
-        }
-        setSellerInfo(seller);
       } catch (err) {
-        setError('Error loading payment information');
+        console.error('Erro ao carregar dados:', err);
+        setError('Erro ao carregar informações do pagamento');
         toast({
-          title: 'Error',
-          description: 'Failed to load payment information',
+          title: 'Erro',
+          description: 'Falha ao carregar informações do pagamento',
           status: 'error',
           duration: 5000,
           isClosable: true,
@@ -152,7 +143,7 @@ export const PaymentPage = () => {
       }
     };
     fetchData();
-  }, [rwaIdNum, tokenIdNum, toast, token]);
+  }, [rwaIdNum, tokenIdNum, toast]);
 
   const handlePayment = async () => {
     try {
@@ -164,35 +155,41 @@ export const PaymentPage = () => {
         pricePerTokenNum
       );
       setSaleInfo(sale);
+
       // 2. Obter endereço da wallet
       const walletAddress = await getAddress();
+
       // 3. Criar mensagem para assinatura
       const message = `Confirm purchase of ${quantityNum} tokens from ${tokenInfo.token_identifier} for ${pricePerTokenNum * quantityNum} USD`;
+
       // 4. Obter assinatura
       const signature = await signMessage(message);
+
       // 5. Confirmar venda
       const confirmedSale = await tokenService.confirmSale(
         sale.id,
         '0x0000000000000000000000000000000000000000000000000000000000000000', // txHash simulado
         signature
       );
+
       if (confirmedSale.status === 'completed') {
         toast({
-          title: 'Success',
-          description: 'Token purchase completed successfully',
+          title: 'Sucesso',
+          description: 'Compra do token realizada com sucesso',
           status: 'success',
           duration: 5000,
           isClosable: true,
         });
         navigate('/wallet');
       } else {
-        throw new Error('Sale was not completed');
+        throw new Error('Venda não foi completada');
       }
     } catch (err) {
-      setError('Error processing payment');
+      console.error('Erro no pagamento:', err);
+      setError('Erro ao processar pagamento');
       toast({
-        title: 'Error',
-        description: 'Failed to process payment',
+        title: 'Erro',
+        description: 'Falha ao processar pagamento',
         status: 'error',
         duration: 5000,
         isClosable: true,
@@ -202,7 +199,7 @@ export const PaymentPage = () => {
         try {
           await tokenService.cancelSale(saleInfo.id);
         } catch (cancelErr) {
-          console.error('Failed to cancel sale:', cancelErr);
+          console.error('Falha ao cancelar venda:', cancelErr);
         }
       }
     } finally {
@@ -223,7 +220,7 @@ export const PaymentPage = () => {
       <Container centerContent py={10}>
         <Alert status="error">
           <AlertIcon />
-          <AlertTitle>Error</AlertTitle>
+          <AlertTitle>Erro</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       </Container>
@@ -241,7 +238,7 @@ export const PaymentPage = () => {
           <Box flex={1} bg="white" borderRadius="2xl" boxShadow="2xl" p={0} display="flex" alignItems="center" justifyContent="center" minW="320px" maxW="420px" minH="260px">
             <Image
               src={mainImage}
-              alt={assetInfo?.name || 'Asset'}
+              alt={assetInfo?.name || 'Imóvel'}
               w="100%"
               h="260px"
               objectFit="cover"
@@ -249,65 +246,38 @@ export const PaymentPage = () => {
               fallbackSrc="https://placehold.co/420x260?text=No+Image"
             />
           </Box>
-          {/* Infos do imóvel */}
-          <Box flex={2} bg="white" borderRadius="2xl" boxShadow="2xl" p={8} minW="320px" maxW="600px" display="flex" flexDirection="column" justifyContent="center">
-            <Heading size="lg" color="blue.800" mb={2}>{assetInfo?.name || 'Imóvel'}</Heading>
-            <Text color="gray.500" fontSize="md" mb={2}>{assetInfo?.description || 'Sem descrição.'}</Text>
-            {/* Exemplo de tags, pode ser adaptado */}
-            {assetInfo?.city && (
-              <Text color="blue.600" fontWeight="bold" fontSize="sm" mb={1}>{assetInfo.city}, {assetInfo.country}</Text>
-            )}
-            {/* Outras infos do asset podem ser adicionadas aqui */}
+
+          {/* Informações do imóvel */}
+          <Box flex={1}>
+            <Card variant="outline" w="100%">
+              <CardHeader>
+                <Heading size="md">{assetInfo?.name}</Heading>
+                <Text color="gray.500">{assetInfo?.location}</Text>
+              </CardHeader>
+              <CardBody>
+                <VStack align="stretch" spacing={4}>
+                  <Text><b>Token ID:</b> {tokenInfo?.token_identifier || tokenInfo?.id}</Text>
+                  <Text><b>Quantidade:</b> {quantityNum}</Text>
+                  <Text><b>Preço por token:</b> ${pricePerTokenNum}</Text>
+                  <Divider />
+                  <Text fontSize="xl"><b>Total:</b> ${totalAmount}</Text>
+                </VStack>
+              </CardBody>
+              <CardFooter>
+                <Button
+                  colorScheme="blue"
+                  size="lg"
+                  w="100%"
+                  onClick={handlePayment}
+                  isLoading={processing}
+                  loadingText="Processando..."
+                >
+                  Confirmar Compra
+                </Button>
+              </CardFooter>
+            </Card>
           </Box>
         </Flex>
-        {/* Cards de compra, vendedor e comprador */}
-        <Flex direction={isMobile ? 'column' : 'row'} gap={6} w="100%" justify="center">
-          {/* Seller */}
-          <Box flex={1} bgGradient="linear(to-br, #e3f0ff, #b3cfff)" borderRadius="xl" p={7} boxShadow="md" textAlign="center" minW="220px" maxW="260px" display="flex" flexDirection="column" alignItems="center" overflow="hidden">
-            <Avatar size="xl" mb={2} />
-            <Text fontWeight="bold" fontSize="lg" color="blue.700" mb={1}>Seller</Text>
-            <Text fontWeight="bold" color="gray.700" noOfLines={1} maxW="180px" mx="auto">{sellerInfo?.name || sellerInfo?.fullName || sellerInfo?.nome || 'Not available'}</Text>
-            <Text fontSize="sm" color="gray.500" wordBreak="break-all" noOfLines={2} maxW="180px" mx="auto">{tokenInfo?.owner_address || sellerInfo?.address || sellerInfo?.wallet_address || 'Not available'}</Text>
-          </Box>
-          {/* Purchase Details */}
-          <Box flex={1.2} bgGradient="linear(to-br, #e3f0ff, #b3cfff)" borderRadius="xl" p={8} boxShadow="lg" borderWidth="3px" borderColor="blue.200" textAlign="center" minW="260px" maxW="320px" display="flex" flexDirection="column" alignItems="center" justifyContent="center" overflow="hidden">
-            <Box mb={2}>
-              <Avatar bg="blue.100" icon={<svg width="32" height="32" fill="#2b6cb0" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>} size="lg" mb={1} />
-            </Box>
-            <Text fontWeight="bold" fontSize="lg" color="blue.700" mb={2}>Purchase Summary</Text>
-            <Text color="gray.900">Token ID: <b>{tokenInfo?.token_identifier || tokenIdNum}</b></Text>
-            <Text color="gray.900">Quantity: <b>{quantityNum}</b></Text>
-            <Text color="gray.900">Price per Token: <b style={{ color: '#2b6cb0' }}>${pricePerTokenNum}</b></Text>
-            <Text fontWeight="bold" color="green.600" fontSize="xl" mt={2}>Total: ${totalAmount}</Text>
-          </Box>
-          {/* Buyer */}
-          <Box flex={1} bgGradient="linear(to-br, #e3f0ff, #b3cfff)" borderRadius="xl" p={7} boxShadow="md" textAlign="center" minW="220px" maxW="260px" display="flex" flexDirection="column" alignItems="center" overflow="hidden">
-            <Avatar size="xl" mb={2} />
-            <Text fontWeight="bold" fontSize="lg" color="blue.700" mb={1}>Buyer</Text>
-            <Text fontWeight="bold" color="gray.700" noOfLines={1} maxW="180px" mx="auto">{(user as any)?.name || (user as any)?.fullName || (user as any)?.nome || 'Not logged in'}</Text>
-            <Text fontSize="sm" color="gray.500" wordBreak="break-all" noOfLines={2} maxW="180px" mx="auto">{user?.address || (user as any)?.wallet_address || 'Not logged in'}</Text>
-          </Box>
-        </Flex>
-        <Box w="100%" maxW="520px">
-          <Button
-            colorScheme="orange"
-            width="100%"
-            onClick={handlePayment}
-            isLoading={processing}
-            loadingText="Processing..."
-            isDisabled={!user?.isConnected}
-            fontSize="xl"
-            py={7}
-            borderRadius="xl"
-            mt={4}
-            boxShadow="xl"
-          >
-            Finalizar compra
-          </Button>
-          <Text color="gray.400" fontSize="sm" textAlign="center" mt={2}>
-            Transação protegida pela blockchain. Seu investimento é seguro.
-          </Text>
-        </Box>
       </VStack>
     </Container>
   );

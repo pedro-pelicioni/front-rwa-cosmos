@@ -46,7 +46,7 @@ import {
   TabPanel
 } from '@chakra-ui/react';
 import { FaDollarSign, FaPlus, FaTrash, FaUpload, FaImage } from 'react-icons/fa';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../hooks';
 import { useProperty } from '../hooks/useProperty';
 import { imageService } from '../services/imageService';
 import { RWAImage } from '../types/rwa';
@@ -99,17 +99,17 @@ export const EditProperty = () => {
         
         // Preencher o formulário com os dados da propriedade
         setFormData({
-          name: property.name,
-          description: property.description,
-          location: property.location,
-          price: property.price.toString(),
-          totalTokens: property.totalTokens.toString(),
-          images: property.metadata.images || [],
-          documents: property.metadata.documents || [],
-          amenities: property.metadata.amenities || [],
-          yearBuilt: property.metadata.yearBuilt?.toString() || '',
-          squareMeters: property.metadata.squareMeters?.toString() || '',
-          gpsCoordinates: property.metadata.gpsCoordinates || '',
+          name: property.name || '',
+          description: property.description || '',
+          location: property.location || '',
+          price: property.price?.toString() || '',
+          totalTokens: property.totalTokens?.toString() || '',
+          images: property.metadata?.images || [],
+          documents: property.metadata?.documents || [],
+          amenities: property.metadata?.amenities || [],
+          yearBuilt: property.metadata?.yearBuilt?.toString() || '',
+          squareMeters: property.metadata?.squareMeters?.toString() || '',
+          gpsCoordinates: property.metadata?.gpsCoordinates || '',
         });
         
         // Buscar as imagens da propriedade
@@ -292,6 +292,18 @@ export const EditProperty = () => {
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!user) {
+      toast({
+        title: 'Erro',
+        description: 'Você precisa estar logado para editar uma propriedade.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+      return;
+    }
+    
     setFormError(null);
     setFieldErrors({});
     
@@ -451,20 +463,6 @@ export const EditProperty = () => {
         <VStack spacing={8} align="center">
           <Spinner size="xl" color="accent.500" thickness="4px" />
           <Text>Carregando dados da propriedade...</Text>
-        </VStack>
-      </Container>
-    );
-  }
-
-  if (!user?.isConnected) {
-    return (
-      <Container maxW="container.md" py={8}>
-        <VStack spacing={8} align="stretch">
-          <Heading>Connect Your Wallet</Heading>
-          <Text>You need to connect your wallet before editing a property.</Text>
-          <Button variant="primary" onClick={onOpen}>
-            Connect Wallet
-          </Button>
         </VStack>
       </Container>
     );

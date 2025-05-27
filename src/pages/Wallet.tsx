@@ -1,399 +1,397 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Box, 
+  Container, 
+  Grid, 
+  GridItem, 
   Heading, 
   Text, 
+  Button, 
   VStack, 
   HStack, 
-  Button, 
-  Card, 
-  CardHeader, 
-  CardBody, 
-  CardFooter, 
-  Divider, 
-  useToast,
   Badge,
-  Code,
-  Alert,
-  AlertIcon,
-  AlertTitle,
-  AlertDescription,
+  useDisclosure,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalCloseButton,
+  ModalFooter,
+  FormControl,
+  FormLabel,
   Input,
-  Textarea,
+  useToast,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
+  TableContainer,
+  Select,
   Flex,
-  Spacer,
-  ButtonGroup,
   Spinner
 } from '@chakra-ui/react';
-import { useKeplr } from '../hooks/useKeplr';
-import { useNoble } from '../hooks/useNoble';
-import { useAuth } from '../hooks/useAuth.tsx';
-import { DirectSecp256k1HdWallet } from '@cosmjs/proto-signing';
-import { SigningCosmWasmClient } from '@cosmjs/cosmwasm-stargate';
-import { Decimal } from '@cosmjs/math';
-import { useRWATokens } from '../hooks/useRWATokens';
-import { RWANFTToken } from '../types/rwa';
+import { useAuth } from '../hooks';
+import { useNavigate } from 'react-router-dom';
+import { apiClient } from '../api/client';
+import { tokenService } from '../services/tokenService';
+import { marketplaceService } from '../services/marketplaceService';
 
-// Endpoint RPC público que suporta CORS
-const RPC_ENDPOINT = 'https://cosmos-rpc.polkachu.com';
+interface KYCData {
+  id?: number;
+  userId: number;
+  fullName: string;
+  cpf: string;
+  status: 'pending' | 'approved' | 'rejected' | 'not_started';
+}
 
-// Função auxiliar para converter string para base64
-const stringToBase64 = (str: string): string => {
-  return btoa(unescape(encodeURIComponent(str)));
-};
+interface Token {
+  id: number;
+  token_identifier: string;
+  owner_user_id: number;
+  rwa_id: number;
+  metadata_uri: string;
+  created_at: string;
+  property?: {
+    name: string;
+    currentValue: number;
+  };
+}
+
+interface Property {
+  id: number;
+  name: string;
+  location: string;
+  currentValue: number;
+  totalTokens: number;
+  availableTokens: number;
+  status: string;
+}
 
 export const Wallet = () => {
   const { user } = useAuth();
-  const { connect: connectKeplr, disconnect: disconnectKeplr, getBalance: getKeplrBalance } = useKeplr();
-  const { connect: connectNoble, disconnect: disconnectNoble, getBalance: getNobleBalance } = useNoble();
-  const [balance, setBalance] = useState<string | null>(null);
-  const [statusLog, setStatusLog] = useState<string[]>([]);
-  const [loginStep, setLoginStep] = useState<string>('Aguardando ação do usuário');
-  const [loginError, setLoginError] = useState<string | null>(null);
-  const [signature, setSignature] = useState<string | null>(null);
-  const [messageToSign, setMessageToSign] = useState('Olá, este é um teste de assinatura!');
-  const [isSigning, setIsSigning] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
   const toast = useToast();
-  const [myTokens, setMyTokens] = useState<RWANFTToken[]>([]);
-  const { getByOwner, loading: loadingTokens } = useRWATokens();
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const [kycData, setKycData] = useState<KYCData | null>(null);
+  const [tokens, setTokens] = useState<Token[]>([]);
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [formData, setFormData] = useState({
+    fullName: '',
+    cpf: ''
+  });
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const itemsPerPage = 10;
+  const isMounted = useRef(true);
+  const fetchAttempted = useRef(false);
 
-  // Função para logar etapas
-  const logStep = (msg: string) => {
-    setStatusLog((prev) => {
-      const updated = [...prev, msg];
-      localStorage.setItem('wallet_last_log', JSON.stringify(updated));
-      return updated;
-    });
-    setLoginStep(msg);
-  };
-
-  // Salva erro no localStorage
-  const saveError = (err: string) => {
-    setLoginError(err);
-    localStorage.setItem('wallet_last_error', err);
-  };
-
-  // Ao montar, recupera último erro e log
   useEffect(() => {
-    const lastError = localStorage.getItem('wallet_last_error');
-    if (lastError) setLoginError(lastError);
-    const lastLog = localStorage.getItem('wallet_last_log');
-    if (lastLog) setStatusLog(JSON.parse(lastLog));
+    return () => {
+      isMounted.current = false;
+    };
   }, []);
 
-  // Exemplo de função de login visual
-  const handleLoginVisual = async (walletType: 'keplr' | 'noble') => {
-    setStatusLog([]);
-    setLoginError(null);
-    try {
-      logStep('Iniciando conexão com a carteira: ' + walletType);
-      let authResponse = null;
-      if (walletType === 'keplr') {
-        logStep('Solicitando permissão à extensão Keplr...');
-        authResponse = await connectKeplr();
-      } else {
-        logStep('Solicitando permissão à extensão Noble...');
-        authResponse = await connectNoble();
-      }
-      if (!authResponse) {
-        const errorMsg = 'Falha ao conectar ou autenticar com a carteira. Verifique o console para mais detalhes.';
-        logStep(errorMsg);
-        saveError(errorMsg);
-        return;
-      }
-      logStep('Autenticação concluída com sucesso!');
-      toast({
-        title: 'Autenticado',
-        description: 'Carteira conectada e autenticada com sucesso!',
-        status: 'success',
-        duration: 5000,
-        isClosable: true,
-      });
-    } catch (err: any) {
-      const errorMsg = err?.message || 'Erro desconhecido durante a autenticação';
-      logStep('Erro: ' + errorMsg);
-      saveError(errorMsg);
-      console.error('Erro detalhado:', err);
-      toast({
-        title: 'Erro',
-        description: errorMsg,
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-    }
-  };
-
-  useEffect(() => {
-    const fetchBalance = async () => {
-      if (!user) return;
-      try {
-        const balance = user.walletType === 'keplr' 
-          ? await getKeplrBalance() 
-          : await getNobleBalance(user.address);
-        setBalance(balance);
-      } catch (error) {
-        console.error('Erro ao buscar saldo:', error);
-        toast({
-          title: 'Erro',
-          description: 'Falha ao buscar saldo da carteira',
-          status: 'error',
-          duration: 5000,
-          isClosable: true,
-        });
-      }
-    };
-    fetchBalance();
-  }, [user, getKeplrBalance, getNobleBalance, toast]);
-
-  const handleDisconnect = async () => {
-    try {
-      if (user?.walletType === 'keplr') {
-        await disconnectKeplr();
-      } else {
-        await disconnectNoble();
-      }
-      
-      toast({
-        title: 'Desconectado',
-        description: 'Carteira desconectada com sucesso!',
-        status: 'info',
-        duration: 5000,
-        isClosable: true,
-      });
-    } catch (error) {
-      console.error('Erro ao desconectar:', error);
-      toast({
-        title: 'Erro',
-        description: 'Falha ao desconectar da carteira',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-    }
-  };
-
-  const handleSignMessage = async () => {
-    if (!user || !user.address) {
-      toast({
-        title: 'Erro',
-        description: 'Você precisa conectar sua carteira primeiro',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
+  const fetchData = useCallback(async () => {
+    if (!user?.id || fetchAttempted.current) {
+      setLoading(false);
       return;
     }
 
-    setIsSigning(true);
-    setError(null);
-    
+    fetchAttempted.current = true;
+    setLoading(true);
+
     try {
-      // Obtém o offline signer
-      if (!window.keplr) throw new Error('Keplr não está instalado');
-      const offlineSigner = window.keplr.getOfflineSigner('cosmoshub-4');
-      const accounts = await offlineSigner.getAccounts();
-      
-      if (accounts.length === 0) {
-        throw new Error('Nenhuma conta encontrada');
+      // Busca dados KYC
+      const kycResponse = await apiClient.get(`/api/kyc/${user.id}`);
+      if (isMounted.current) {
+        setKycData(kycResponse.data);
       }
-      
-      // Assina a mensagem
-      const signDoc = {
-        chain_id: 'cosmoshub-4',
-        account_number: '0',
-        sequence: '0',
-        fee: {
-          amount: [{ denom: 'stake', amount: '0' }],
-          gas: '0',
-        },
-        msgs: [
-          {
-            type: 'cosmos-sdk/MsgSignData',
-            value: {
-              signer: accounts[0].address,
-              data: stringToBase64(messageToSign),
-            },
-          },
-        ],
-        memo: '',
-      };
-      
-      const { signature: sig } = await window.keplr.signAmino(
-        'cosmoshub-4',
-        accounts[0].address,
-        signDoc
-      );
-      
-      setSignature(JSON.stringify(sig, null, 2));
-      
-      toast({
-        title: 'Assinatura bem-sucedida',
-        description: 'A mensagem foi assinada com sucesso',
-        status: 'success',
-        duration: 5000,
-        isClosable: true,
-      });
-    } catch (err) {
-      console.error('Erro ao assinar:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Erro ao assinar a mensagem';
-      setError(errorMessage);
-      
-      toast({
-        title: 'Erro ao assinar',
-        description: errorMessage,
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
+
+      // Busca tokens
+      const tokensResponse = await tokenService.getByOwner(Number(user.id));
+      if (isMounted.current) {
+        setTokens(tokensResponse);
+      }
+
+      // Busca propriedades
+      const propertiesResponse = await apiClient.get(`/api/rwa/user/${user.id}`);
+      if (isMounted.current) {
+        setProperties(propertiesResponse.data || []);
+        setTotalPages(Math.ceil((propertiesResponse.data?.length || 0) / itemsPerPage));
+      }
+    } catch (error: any) {
+      console.error('Erro ao buscar dados:', error);
+      if (error.response?.status === 401) {
+        navigate('/login');
+      }
     } finally {
-      setIsSigning(false);
+      if (isMounted.current) {
+        setLoading(false);
+      }
+    }
+  }, [user?.id, navigate]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const handleKYCSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (kycData?.id) {
+        await apiClient.put(`/api/kyc/${kycData.id}`, formData);
+      } else {
+        await apiClient.post('/api/kyc', {
+          ...formData,
+          userId: user?.id,
+          status: 'pending'
+        });
+      }
+
+      toast({
+        title: 'Dados salvos com sucesso!',
+        status: 'success',
+        duration: 3000
+      });
+
+      onClose();
+      fetchData();
+    } catch (error) {
+      toast({
+        title: 'Erro ao salvar dados',
+        description: 'Tente novamente mais tarde',
+        status: 'error',
+        duration: 3000
+      });
     }
   };
 
-  // Toast para sessão expirada
-  useEffect(() => {
-    function handleSessionExpired() {
-      toast({
-        title: 'Sessão expirada',
-        description: 'Sua sessão expirou. Faça login novamente para continuar.',
-        status: 'warning',
-        duration: 7000,
-        isClosable: true,
-      });
-      setTimeout(() => {
-        (window as any).showedSessionExpiredToast = false;
-      }, 8000);
+  const handleStartKYC = () => {
+    if (!kycData?.fullName) {
+      onOpen();
+    } else {
+      navigate('/kyc');
     }
-    window.addEventListener('sessionExpired', handleSessionExpired);
-    return () => window.removeEventListener('sessionExpired', handleSessionExpired);
-  }, [toast]);
+  };
 
-  useEffect(() => {
-    const fetchTokens = async () => {
-      if (!user) return;
-      try {
-        const tokens = await getByOwner(Number(user.id));
-        setMyTokens(tokens);
-      } catch (err) {
-        setMyTokens([]);
-      }
-    };
-    fetchTokens();
-  }, [user, getByOwner]);
+  const getKYCStatus = () => {
+    if (!kycData) return 'not_started';
+    return kycData.status;
+  };
+
+  const getKYCStatusColor = (status: string) => {
+    switch (status) {
+      case 'approved': return 'green';
+      case 'pending': return 'yellow';
+      case 'rejected': return 'red';
+      default: return 'gray';
+    }
+  };
+
+  if (loading) {
+    return (
+      <Box p={8} textAlign="center">
+        <Spinner size="xl" />
+        <Text mt={4}>Carregando dados da carteira...</Text>
+      </Box>
+    );
+  }
 
   return (
-    <Box p={6}>
-      <Flex mb={6} align="center">
-        <Heading size="lg">Minha Carteira</Heading>
-        <Spacer />
-        {user && (
-          <Button colorScheme="red" onClick={handleDisconnect}>
-            Desconectar
-          </Button>
-        )}
-      </Flex>
-      {/* Painel de status do login */}
-      <Card variant="outline" mb={6}>
-        <CardHeader>
-          <Heading size="sm">Status do Login</Heading>
-        </CardHeader>
-        <CardBody>
-          <VStack align="start" spacing={2}>
-            <Text><b>Etapa atual:</b> {loginStep}</Text>
-            {loginError && (
-              <Alert status="error">
-                <AlertIcon />
-                <AlertTitle>Erro:</AlertTitle>
-                <AlertDescription>{loginError}</AlertDescription>
-              </Alert>
-            )}
-            <Box w="100%">
-              <Text fontWeight="bold" mb={1}>Log de etapas:</Text>
-              <Box as="pre" bg="gray.50" p={2} borderRadius="md" maxH="200px" overflowY="auto">
-                {statusLog.map((msg, idx) => <div key={idx}>{msg}</div>)}
-              </Box>
-            </Box>
-            <ButtonGroup mt={2}>
-              <Button colorScheme="purple" onClick={() => handleLoginVisual('keplr')}>Login com Keplr</Button>
-              <Button colorScheme="blue" onClick={() => handleLoginVisual('noble')}>Login com Noble</Button>
-            </ButtonGroup>
-          </VStack>
-        </CardBody>
-      </Card>
-      
-      {!user ? (
-        <Card variant="outline">
-          <CardHeader>
-            <Heading size="md">Carteira</Heading>
-          </CardHeader>
-          <CardBody>
-            <VStack spacing={4} align="stretch">
-              <Text>
-                Conecte-se usando o botão "Iniciar Sessão" no menu lateral.
-              </Text>
-            </VStack>
-          </CardBody>
-        </Card>
-      ) : (
-        <Card variant="outline">
-          <CardHeader>
-            <Heading size="md">Carteira Conectada</Heading>
-          </CardHeader>
-          <CardBody>
+    <Container maxW="container.xl" py={8}>
+      <Grid templateColumns={{ base: "1fr", lg: "repeat(3, 1fr)" }} gap={8}>
+        {/* My Account Card */}
+        <GridItem>
+          <Box p={6} borderWidth={1} borderRadius="xl" bg="white" color="black">
             <VStack align="stretch" spacing={4}>
-              <HStack>
-                <Text fontWeight="bold">Status:</Text>
-                <Badge colorScheme="green">Conectado</Badge>
-              </HStack>
-              <HStack>
-                <Text fontWeight="bold">Tipo:</Text>
-                <Badge colorScheme={user.walletType === 'keplr' ? 'purple' : 'blue'}>
-                  {user.walletType === 'keplr' ? 'Keplr' : 'Noble'}
+              <Heading size="md">Minha Conta</Heading>
+              
+              <Box>
+                <Text fontWeight="bold">Status KYC</Text>
+                <Badge colorScheme={getKYCStatusColor(getKYCStatus())}>
+                  {getKYCStatus() === 'not_started' ? 'Não iniciado' : getKYCStatus()}
                 </Badge>
-              </HStack>
-              <HStack>
-                <Text fontWeight="bold">Endereço:</Text>
-                <Code p={2} borderRadius="md" fontSize="sm" maxW="500px" isTruncated>
-                  {user.address}
-                </Code>
-              </HStack>
-              {balance && (
-                <HStack>
-                  <Text fontWeight="bold">Saldo:</Text>
-                  <Text>{balance}</Text>
+              </Box>
+
+              <Box>
+                <Text fontWeight="bold">Número de Tokens</Text>
+                <Text>{tokens.length}</Text>
+              </Box>
+
+              <Button
+                colorScheme="blue"
+                onClick={handleStartKYC}
+                isDisabled={getKYCStatus() === 'approved'}
+              >
+                {getKYCStatus() === 'not_started' ? 'Iniciar KYC' : 'Verificar KYC'}
+              </Button>
+            </VStack>
+          </Box>
+        </GridItem>
+
+        {/* My Tokens Card */}
+        <GridItem>
+          <Box p={6} borderWidth={1} borderRadius="xl" bg="white" color="black">
+            <VStack align="stretch" spacing={4}>
+              <Heading size="md">Meus Tokens</Heading>
+              
+              <Text>Total de Tokens: {tokens.length}</Text>
+
+              <Button
+                colorScheme="blue"
+                onClick={() => navigate('/marketplace')}
+                isDisabled={getKYCStatus() !== 'approved'}
+              >
+                Comprar Novos Tokens
+              </Button>
+
+              {tokens.length > 0 && (
+                <TableContainer>
+                  <Table size="sm">
+                    <Thead>
+                      <Tr>
+                        <Th>Token</Th>
+                        <Th>Propriedade</Th>
+                        <Th>Valor</Th>
+                      </Tr>
+                    </Thead>
+                    <Tbody>
+                      {tokens.map(token => (
+                        <Tr key={token.id}>
+                          <Td>{token.token_identifier}</Td>
+                          <Td>{token.property?.name || 'N/A'}</Td>
+                          <Td>${token.property?.currentValue || 0}</Td>
+                        </Tr>
+                      ))}
+                    </Tbody>
+                  </Table>
+                </TableContainer>
+              )}
+            </VStack>
+          </Box>
+        </GridItem>
+
+        {/* My Properties Card */}
+        <GridItem>
+          <Box p={6} borderWidth={1} borderRadius="xl" bg="white" color="black">
+            <VStack align="stretch" spacing={4}>
+              <Flex justify="space-between" align="center">
+                <Heading size="md">Minhas Propriedades</Heading>
+                <Button
+                  size="sm"
+                  colorScheme="blue"
+                  onClick={() => navigate('/assets/new')}
+                  isDisabled={getKYCStatus() !== 'approved'}
+                >
+                  Adicionar RWA
+                </Button>
+              </Flex>
+
+              {properties.length > 0 ? (
+                <TableContainer>
+                  <Table size="sm">
+                    <Thead>
+                      <Tr>
+                        <Th>Nome</Th>
+                        <Th>Localização</Th>
+                        <Th>Valor</Th>
+                        <Th>Status</Th>
+                      </Tr>
+                    </Thead>
+                    <Tbody>
+                      {properties
+                        .slice((page - 1) * itemsPerPage, page * itemsPerPage)
+                        .map(property => (
+                          <Tr key={property.id}>
+                            <Td>{property.name}</Td>
+                            <Td>{property.location}</Td>
+                            <Td>${property.currentValue}</Td>
+                            <Td>
+                              <Badge
+                                colorScheme={
+                                  property.status === 'active' ? 'green' :
+                                  property.status === 'inactive' ? 'gray' : 'red'
+                                }
+                              >
+                                {property.status}
+                              </Badge>
+                            </Td>
+                          </Tr>
+                        ))}
+                    </Tbody>
+                  </Table>
+                </TableContainer>
+              ) : (
+                <Text>Nenhuma propriedade encontrada</Text>
+              )}
+
+              {totalPages > 1 && (
+                <HStack justify="center" mt={4}>
+                  <Button
+                    size="sm"
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    isDisabled={page === 1}
+                  >
+                    Anterior
+                  </Button>
+                  <Text>Página {page} de {totalPages}</Text>
+                  <Button
+                    size="sm"
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    isDisabled={page === totalPages}
+                  >
+                    Próxima
+                  </Button>
                 </HStack>
               )}
             </VStack>
-          </CardBody>
-        </Card>
-      )}
-      {user && (
-        <Card variant="outline" mt={6}>
-          <CardHeader>
-            <Heading size="md">My Tokens</Heading>
-          </CardHeader>
-          <CardBody>
-            {loadingTokens ? (
-              <Spinner />
-            ) : myTokens.length === 0 ? (
-              <Text>You don't have any tokens.</Text>
-            ) : (
-              <VStack align="stretch" spacing={3}>
-                {myTokens.map((token: any) => (
-                  <Box key={token.id} p={3} borderWidth={1} borderRadius="md">
-                    <Text><b>Token:</b> {token.token_identifier}</Text>
-                    <Text><b>ID:</b> {token.id}</Text>
-                    <Text><b>RWA:</b> {token.rwa_id}</Text>
-                    <Text><b>Metadata URI:</b> {token.metadata_uri || '-'}</Text>
-                  </Box>
-                ))}
+          </Box>
+        </GridItem>
+      </Grid>
+
+      {/* Modal de KYC Inicial */}
+      <Modal isOpen={isOpen} onClose={onClose}>
+        <ModalOverlay />
+        <ModalContent>
+          <form onSubmit={handleKYCSubmit}>
+            <ModalHeader>Complete seu Cadastro</ModalHeader>
+            <ModalCloseButton />
+            <ModalBody>
+              <VStack spacing={4}>
+                <FormControl isRequired>
+                  <FormLabel>Nome Completo</FormLabel>
+                  <Input
+                    value={formData.fullName}
+                    onChange={(e) => setFormData(prev => ({ ...prev, fullName: e.target.value }))}
+                    placeholder="Digite seu nome completo"
+                  />
+                </FormControl>
+
+                <FormControl isRequired>
+                  <FormLabel>CPF</FormLabel>
+                  <Input
+                    value={formData.cpf}
+                    onChange={(e) => setFormData(prev => ({ ...prev, cpf: e.target.value }))}
+                    placeholder="Digite seu CPF"
+                  />
+                </FormControl>
               </VStack>
-            )}
-          </CardBody>
-        </Card>
-      )}
-    </Box>
+            </ModalBody>
+            <ModalFooter>
+              <Button variant="ghost" mr={3} onClick={onClose}>
+                Cancelar
+              </Button>
+              <Button type="submit" colorScheme="blue">
+                Salvar
+              </Button>
+            </ModalFooter>
+          </form>
+        </ModalContent>
+      </Modal>
+    </Container>
   );
 }; 

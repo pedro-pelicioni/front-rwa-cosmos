@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Box, Container, Heading, Text, SimpleGrid, Button, Flex, Image, Badge, HStack, VStack, Divider, useColorModeValue, Input, InputGroup, InputLeftElement, Spinner, IconButton } from '@chakra-ui/react';
 import { Link as RouterLink } from 'react-router-dom';
 import { FaSearch, FaSort, FaFilter, FaEdit } from 'react-icons/fa';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../hooks';
 import { useProperty } from '../hooks/useProperty';
 import { Property } from '../types/Property';
 import { imageService } from '../services/imageService';
 import { getImageCookie, setImageCookie } from '../utils/imageCookieCache';
+import { FALLBACK_IMAGES } from '../constants/images';
 
 export const Assets = () => {
   const { user } = useAuth();
@@ -14,16 +15,25 @@ export const Assets = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [properties, setProperties] = useState<Property[]>([]);
   const [propertyImages, setPropertyImages] = useState<{[key: string]: string}>({});
+  const isMounted = useRef(false);
+  const fetchAttempted = useRef(false);
   
-  useEffect(() => {
-    const fetchProperties = async () => {
-      try {
-        const data = await getAll();
-        setProperties(data);
-        // Buscar a primeira imagem de cada propriedade
-        const imagesObj: {[key: string]: string} = {};
-        await Promise.all(data.map(async (property) => {
-          const images = await imageService.getByRWAId(Number(property.id));
+  const fetchProperties = useCallback(async () => {
+    if (fetchAttempted.current) return;
+    fetchAttempted.current = true;
+
+    try {
+      const data = await getAll();
+      if (!isMounted.current) return;
+      
+      setProperties(data);
+      // Buscar a primeira imagem de cada propriedade
+      const imagesObj: {[key: string]: string} = {};
+      await Promise.all(data.map(async (property) => {
+        try {
+          const images = await imageService.getByRWAId(Number(property.id || 0));
+          if (!isMounted.current) return;
+          
           if (images.length > 0) {
             const img = images[0];
             const cacheKey = `rwa_image_${property.id}_${img.id}`;
@@ -34,20 +44,32 @@ export const Assets = () => {
             }
             imagesObj[property.id] = url;
           }
-        }));
+        } catch (err) {
+          console.error(`Erro ao buscar imagens para propriedade ${property.id}:`, err);
+        }
+      }));
+      
+      if (isMounted.current) {
         setPropertyImages(imagesObj);
-      } catch (err) {
-        console.error('Erro ao buscar propriedades:', err);
       }
-    };
-    
-    fetchProperties();
+    } catch (err) {
+      console.error('Erro ao buscar propriedades:', err);
+    }
   }, [getAll]);
+
+  useEffect(() => {
+    isMounted.current = true;
+    fetchProperties();
+    
+    return () => {
+      isMounted.current = false;
+    };
+  }, [fetchProperties]);
   
   const filteredProperties = properties.filter(property => 
     property.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    property.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    property.description.toLowerCase().includes(searchTerm.toLowerCase())
+    (property.location?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (property.description?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   );
   
   const formatCurrency = (amount: number) => {
@@ -149,11 +171,12 @@ export const Assets = () => {
             >
               <Box height="220px" position="relative" overflow="hidden">
                 <Image 
-                  src={propertyImages[property.id] || 'https://via.placeholder.com/400x300?text=No+Image'} 
+                  src={propertyImages[property.id] || FALLBACK_IMAGES.PROPERTY}
                   alt={property.name}
                   objectFit="cover"
                   width="100%"
                   height="100%"
+                  borderRadius="md"
                 />
                 <Badge 
                   position="absolute" 
@@ -165,7 +188,7 @@ export const Assets = () => {
                   px={2}
                   py={1}
                 >
-                  {formatCurrency(property.metadata.tokenPrice || property.price / property.totalTokens)} per token
+                  {formatCurrency(property.metadata?.tokenPrice || (property.price || 0) / (property.totalTokens || 1))} per token
                 </Badge>
               </Box>
               
@@ -185,7 +208,7 @@ export const Assets = () => {
                       {formatCurrency(property.price)}
                     </Text>
                     <Text fontSize="xs" color="text.dim">
-                      {property.availableTokens} of {property.totalTokens} tokens available
+                      {property.availableTokens || 0} of {property.totalTokens || 0} tokens available
                     </Text>
                   </VStack>
                   

@@ -6,7 +6,7 @@ export interface User {
   role: string;
 }
 
-interface AuthResponse {
+export interface AuthResponse {
   token: string;
   user: User;
 }
@@ -15,97 +15,136 @@ interface NonceResponse {
   nonce: string;
 }
 
-const TOKEN_KEY = 'auth_token';
-const USER_KEY = 'user';
-const TOKEN_REFRESH_THRESHOLD = 5 * 60 * 1000; // 5 minutos em milissegundos
+interface WalletLoginRequest {
+  address: string;
+  signature: string;
+  pub_key: {
+    type: string;
+    value: string;
+  };
+  nonce: string;
+}
 
-export const authService = {
+const TOKEN_KEY = 'auth_token';
+const USER_KEY = 'auth_user';
+
+const authService = {
   async getNonce(address: string): Promise<string> {
     try {
-      const response = await apiClient.get<NonceResponse>('/api/auth/nonce', {
-        params: { address }
-      });
+      const response = await apiClient.get<NonceResponse>(`/api/auth/nonce?address=${address}`);
       return response.data.nonce;
-    } catch (error: any) {
-      console.error('Erro ao obter nonce:', error);
-      throw new Error(error.response?.data?.message || 'Erro ao obter nonce');
+    } catch (error) {
+      console.error('[AuthService] Erro ao obter nonce:', error);
+      throw new Error('Erro ao obter nonce. Tente novamente.');
     }
   },
 
-  async loginWithWallet(address: string, signature: string, nonce: string): Promise<AuthResponse> {
-    try {
-      const payload = { address, signature, nonce };
-      console.log('[authService] Enviando para /api/auth/wallet-login:', payload);
-      const response = await apiClient.post<AuthResponse>('/api/auth/wallet-login', payload);
-      
-      // Valida o token antes de salvar
-      if (!this.isValidToken(response.data.token)) {
-        throw new Error('Token inválido recebido do servidor');
-      }
-      
-      this.setToken(response.data.token);
-      this.setUser(response.data.user);
-      return response.data;
-    } catch (error: any) {
-      console.error('[authService] Erro na autenticação:', error);
-      if (error.response) {
-        console.error('[authService] Resposta do backend:', error.response.data);
-      }
-      throw new Error(error.response?.data?.message || 'Erro ao autenticar. Detalhes no console.');
-    }
-  },
-
-  logout() {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
-    delete apiClient.defaults.headers.common['Authorization'];
-  },
-
-  getToken(): string | null {
+  getToken: () => {
     const token = localStorage.getItem(TOKEN_KEY);
-    if (!token) return null;
-    
-    // Verifica se o token é válido antes de retornar
-    if (!this.isValidToken(token)) {
-      this.logout();
-      return null;
-    }
-
-    // Verifica se o token está próximo de expirar
-    if (this.isTokenExpiringSoon(token)) {
-      console.log('[authService] Token próximo de expirar, tentando refresh...');
-      this.refreshToken();
-    }
-    
+    console.log('[AuthService] Token obtido:', token || 'Token não encontrado');
     return token;
   },
 
-  setToken(token: string) {
-    if (!this.isValidToken(token)) {
-      throw new Error('Token inválido');
-    }
-    
+  setToken: (token: string) => {
     localStorage.setItem(TOKEN_KEY, token);
-    apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    console.log('[AuthService] Token salvo');
   },
 
-  setUser(user: User) {
+  removeToken: () => {
+    localStorage.removeItem(TOKEN_KEY);
+    console.log('[AuthService] Token removido');
+  },
+
+  getUser: () => {
+    const user = localStorage.getItem(USER_KEY);
+    console.log('[AuthService] Usuário obtido:', user || 'Usuário não encontrado');
+    return user ? JSON.parse(user) : null;
+  },
+
+  setUser: (user: User) => {
     localStorage.setItem(USER_KEY, JSON.stringify(user));
+    console.log('[AuthService] Usuário salvo');
   },
 
-  getUser(): User | null {
-    const userStr = localStorage.getItem(USER_KEY);
-    if (!userStr) return null;
+  removeUser: () => {
+    localStorage.removeItem(USER_KEY);
+    console.log('[AuthService] Usuário removido');
+  },
+
+  logout: () => {
+    console.log('[AuthService] Realizando logout');
+    authService.removeToken();
+    authService.removeUser();
+    console.log('[AuthService] Logout realizado');
+  },
+
+  setAuthData: (token: string, user: User) => {
+    authService.setToken(token);
+    authService.setUser(user);
+    console.log('[AuthService] Dados de autenticação salvos');
+  },
+
+  async loginWithWallet(data: WalletLoginRequest): Promise<AuthResponse> {
     try {
-      return JSON.parse(userStr) as User;
-    } catch {
-      return null;
+      console.log('[AuthService] Iniciando login com carteira:', {
+        address: data.address,
+        signature: data.signature,
+        pub_key: {
+          type: data.pub_key.type,
+          value: data.pub_key.value,
+          valueLength: data.pub_key.value.length,
+          valueBase64: data.pub_key.value,
+          valueHex: Buffer.from(data.pub_key.value, 'base64').toString('hex')
+        },
+        nonce: data.nonce
+      });
+
+      // Verifica se todos os campos necessários estão presentes
+      if (!data.address || !data.signature || !data.pub_key || !data.nonce) {
+        console.error('[AuthService] Dados incompletos:', data);
+        throw new Error('Dados de autenticação incompletos');
+      }
+
+      // Verifica se a chave pública está no formato correto
+      if (!data.pub_key.value || data.pub_key.value.length === 0) {
+        console.error('[AuthService] Chave pública inválida:', data.pub_key);
+        throw new Error('Chave pública inválida');
+      }
+
+      const response = await apiClient.post<AuthResponse>('/api/auth/wallet-login', data);
+      console.log('[AuthService] Login realizado com sucesso');
+      return response.data;
+    } catch (error) {
+      console.error('[AuthService] Erro no login:', error);
+      throw new Error('Erro ao fazer login. Verifique suas credenciais.');
+    }
+  },
+
+  async refreshToken(): Promise<void> {
+    try {
+      const token = this.getToken();
+      if (!token) {
+        throw new Error('Token não encontrado');
+      }
+
+      const response = await apiClient.post<AuthResponse>('/api/auth/refresh', {}, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      const { token: newToken, user } = response.data;
+      this.setAuthData(newToken, user);
+    } catch (error) {
+      console.error('[AuthService] Erro ao renovar token:', error);
+      throw new Error('Erro ao renovar sessão');
     }
   },
 
   isAuthenticated(): boolean {
     const token = this.getToken();
-    return !!token && !this.isTokenExpired(token);
+    const user = this.getUser();
+    return !!(token && user);
   },
 
   isTokenExpired(token?: string | null): boolean {
@@ -114,41 +153,8 @@ export const authService = {
       const payload = JSON.parse(atob(token.split('.')[1]));
       return payload.exp * 1000 < Date.now();
     } catch (e) {
-      console.error('Erro ao verificar expiração do token:', e);
+      console.error('[AuthService] Erro ao verificar expiração do token:', e);
       return true;
-    }
-  },
-
-  isTokenExpiringSoon(token: string): boolean {
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      const expirationTime = payload.exp * 1000;
-      const currentTime = Date.now();
-      return expirationTime - currentTime < TOKEN_REFRESH_THRESHOLD;
-    } catch (e) {
-      console.error('Erro ao verificar expiração próxima do token:', e);
-      return true;
-    }
-  },
-
-  async refreshToken(): Promise<void> {
-    try {
-      const user = this.getUser();
-      if (!user) {
-        throw new Error('Usuário não encontrado para refresh do token');
-      }
-
-      // Obtém um novo nonce
-      const nonce = await this.getNonce(user.address);
-      
-      // Aqui você precisaria implementar a lógica para obter uma nova assinatura da wallet
-      // Por enquanto, vamos apenas fazer logout e pedir para o usuário fazer login novamente
-      this.logout();
-      throw new Error('Sessão expirada. Por favor, faça login novamente.');
-    } catch (error) {
-      console.error('Erro ao refresh do token:', error);
-      this.logout();
-      throw error;
     }
   },
 
@@ -156,7 +162,7 @@ export const authService = {
     try {
       const parts = token.split('.');
       if (parts.length !== 3) {
-        console.error('Token mal formatado: não tem 3 partes');
+        console.error('[AuthService] Token mal formatado: não tem 3 partes');
         return false;
       }
       const payload = JSON.parse(atob(parts[1]));
@@ -167,13 +173,15 @@ export const authService = {
         typeof payload.role !== 'string' ||
         typeof payload.exp !== 'number'
       ) {
-        console.error('Token inválido: payload incompleto', payload);
+        console.error('[AuthService] Token inválido: payload incompleto', payload);
         return false;
       }
       return true;
     } catch (e) {
-      console.error('Erro ao validar token:', e);
+      console.error('[AuthService] Erro ao validar token:', e);
       return false;
     }
   }
-}; 
+};
+
+export { authService }; 

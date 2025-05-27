@@ -1,7 +1,7 @@
 import { Box, Container, VStack, Heading, Text, Button, Avatar, useColorModeValue } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
 import { useKeplr } from '../hooks/useKeplr';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../hooks';
 
 const LoginPage = () => {
   const navigate = useNavigate();

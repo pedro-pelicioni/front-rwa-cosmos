@@ -14,13 +14,27 @@ interface TokenSale {
 
 export const tokenService = {
   async getByRWAId(rwaId: number): Promise<RWANFTToken[]> {
-    const response = await apiClient.get(`/api/rwa/nfts/rwa/${rwaId}`);
-    return response.data.data || response.data;
+    try {
+      const response = await apiClient.get(`/api/rwa/nfts/rwa/${rwaId}`);
+      return response.data || [];
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return [];
+      }
+      throw error;
+    }
   },
 
   async getByOwner(userId: number): Promise<RWANFTToken[]> {
-    const response = await apiClient.get<RWANFTToken[]>(`/api/rwa/tokens/owner/${userId}`);
-    return response.data;
+    try {
+      const response = await apiClient.get<RWANFTToken[]>(`/api/rwa/tokens/owner/${userId}`);
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return [];
+      }
+      throw error;
+    }
   },
 
   async getOwnershipHistory(tokenId: number): Promise<RWAOwnershipHistory[]> {
