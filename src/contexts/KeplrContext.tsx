@@ -2,12 +2,16 @@ import { createContext, useContext, ReactNode } from 'react';
 import { useKeplr } from '../hooks/useKeplr';
 
 interface KeplrContextType {
-  connect: () => Promise<boolean>;
+  keplr: any;
+  isConnecting: boolean;
+  error: string | null;
+  connectKeplr: () => Promise<string>;
   disconnect: () => Promise<boolean>;
+  getBalance: () => Promise<string>;
   walletAddress: string | null;
   walletName: string | null;
-  error: string | null;
-  isConnected: boolean;
+  getAddress: (() => Promise<string>) | undefined;
+  signMessage: ((message: string) => Promise<any>) | undefined;
 }
 
 const KeplrContext = createContext<KeplrContextType | undefined>(undefined);

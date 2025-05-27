@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Box, Container, Heading, Text, Button, VStack, FormControl, FormLabel, Input, Alert, AlertIcon, HStack, Image, Spinner, useToast
 } from '@chakra-ui/react';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../hooks';
 import { apiClient } from '../api/client';
 
 export const KycPage = () => {
