@@ -10,7 +10,7 @@ export const Register: React.FC = () => {
   const handleKeplrRegister = async () => {
     try {
       await connect('keplr');
-      navigate('/dashboard');
+      navigate('/wallet');
     } catch (error) {
       console.error('Erro ao registrar com Keplr:', error);
     }

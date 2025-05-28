@@ -41,18 +41,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         const signature = await keplr.signMessage(nonce);
         
-        const response = await authService.loginWithWallet({
+        const response = await authService.loginWithWallet(
           address,
-          signature: signature.signature,
-          pub_key: {
-            type: 'tendermint/PubKeySecp256k1',
-            value: signature.pub_key.value
-          },
+          signature,
           nonce
-        });
+        );
         
         setUser(response.user);
-        localStorage.setItem('token', response.token);
+        localStorage.setItem('auth_token', response.token);
         
         toast({
           title: 'Conectado com sucesso!',
@@ -62,7 +58,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           isClosable: true,
         });
         
-        navigate('/dashboard');
+        navigate('/wallet');
       }
     } catch (error) {
       console.error('[AuthContext] Erro ao conectar:', error);
@@ -83,7 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await keplr.disconnect();
       setUser(null);
-      localStorage.removeItem('token');
+      localStorage.removeItem('auth_token');
       navigate('/login');
     } catch (error) {
       console.error('[AuthContext] Erro ao desconectar:', error);
@@ -99,7 +95,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = useCallback(() => {
     setUser(null);
-    localStorage.removeItem('token');
+    localStorage.removeItem('auth_token');
     navigate('/login');
   }, [navigate]);
 

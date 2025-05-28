@@ -1,25 +1,80 @@
 import { apiClient } from '../api/client';
-import { authService } from './authService';
+import { authService } from './auth';
 
 export interface KYCData {
-  id: number;
+  id?: number;
   userId: number;
-  status: 'pending' | 'approved' | 'rejected';
-  documentType: string;
-  documentNumber: string;
-  documentUrl: string;
-  createdAt: string;
-  updatedAt: string;
+  fullName?: string;
+  cpf?: string;
+  documentType?: string;
+  documentNumber?: string;
+  documentUrl?: string;
+  status: 'pending' | 'approved' | 'rejected' | 'not_started' | 'unauthorized';
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export const kycService = {
-  async getByUserId(userId: number): Promise<KYCData | null> {
+  async getByUserId(userId: number): Promise<KYCData> {
     try {
-      const response = await apiClient.get(`/api/kyc/${userId}`);
+      const response = await apiClient.get(`/api/users/kyc/${userId}`);
       return response.data;
-    } catch (error) {
-      console.error('[KYCService] Erro ao buscar dados KYC:', error);
-      return null;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return {
+          userId,
+          status: 'not_started'
+        };
+      }
+      throw error;
+    }
+  },
+
+  async getStatus(): Promise<KYCData> {
+    try {
+      const response = await apiClient.get('/api/users/kyc');
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return {
+          userId: authService.getUser()?.id || 0,
+          status: 'not_started'
+        };
+      }
+      if (error.response?.status === 401) {
+        // Retorna um status especial para indicar sessão expirada, sem lançar erro
+        return {
+          userId: authService.getUser()?.id || 0,
+          status: 'unauthorized'
+        };
+      }
+      throw error;
+    }
+  },
+
+  async submitBasic(data: { nome: string; cpf: string }): Promise<KYCData> {
+    try {
+      const response = await apiClient.post('/api/users/kyc/basic', data);
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      }
+      throw error;
+    }
+  },
+
+  async submitDocuments(formData: FormData): Promise<KYCData> {
+    try {
+      const response = await apiClient.post('/api/users/kyc/documents', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      }
+      throw error;
     }
   },
 
@@ -58,16 +113,6 @@ export const kycService = {
         throw new Error('Sessão expirada. Por favor, faça login novamente.');
       }
       throw new Error(error.response?.data?.message || 'Erro ao submeter dados KYC');
-    }
-  },
-
-  async getStatus(userId: number): Promise<string> {
-    try {
-      const kycData = await this.getByUserId(userId);
-      return kycData?.status || 'pending';
-    } catch (error) {
-      console.error('[KYCService] Erro ao obter status KYC:', error);
-      return 'pending';
     }
   },
 

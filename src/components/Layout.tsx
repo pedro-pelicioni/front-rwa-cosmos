@@ -4,7 +4,7 @@ import { Link as RouterLink, useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks';
 import { useKeplrContext } from '../contexts/KeplrContext'
 import { useNoble } from '../hooks/useNoble'
-import { FaSearch } from 'react-icons/fa'
+import { FaSearch, FaMap, FaList } from 'react-icons/fa'
 import logoImage from '../assets/IMOLatamLogo.png'
 import { WalletConnectModal } from './WalletConnectModal'
 
@@ -36,33 +36,35 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
     <Box minH="100vh">
       <Flex as="nav" bg="primary.600" p={4} justify="space-between" align="center">
-        <Flex gap={4}>
+        <Flex gap={4} align="center">
+          <Image src={logoImage} alt="IMO Latam" h="40px" />
           <Button as={RouterLink} to="/" variant="ghost" color="white">
             Home
           </Button>
-          <Button as={RouterLink} to="/marketplace" variant="ghost" color="white">
-            Marketplace
+          <Button as={RouterLink} to="/assets" variant="ghost" color="white" leftIcon={<FaList />}>
+            Assets
+          </Button>
+          <Button as={RouterLink} to="/latammap" variant="ghost" color="white" leftIcon={<FaMap />}>
+            Mapa
           </Button>
         </Flex>
         <Flex gap={4}>
+          <Button as={RouterLink} to="/wallet" variant="ghost" color="white">
+            Wallet
+          </Button>
           {user ? (
-            <>
-              <Button as={RouterLink} to="/dashboard" variant="ghost" color="white">
-                Dashboard
-              </Button>
-              <Button onClick={disconnect} variant="ghost" color="white">
-                Logout
-              </Button>
-            </>
+            <Button onClick={disconnect} variant="ghost" color="white">
+              Logout
+            </Button>
           ) : (
-            <>
-              <Button as={RouterLink} to="/login" variant="ghost" color="white">
-                Login
-              </Button>
-              <Button as={RouterLink} to="/register" variant="ghost" color="white">
-                Register
-              </Button>
-            </>
+            <Button 
+              onClick={handleOpenSession} 
+              variant="solid" 
+              colorScheme="orange"
+              isLoading={isLoading}
+            >
+              Login
+            </Button>
           )}
         </Flex>
       </Flex>
