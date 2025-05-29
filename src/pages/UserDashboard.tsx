@@ -66,7 +66,7 @@ interface Token {
 interface Property {
   id: number;
   name: string;
-  location: string;
+  city: string;
   currentValue: number;
   totalTokens: number;
   availableTokens: number;
@@ -89,8 +89,6 @@ export const UserDashboard = () => {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const itemsPerPage = 10;
-  const isMounted = useRef(true);
-  const fetchAttempted = useRef(false);
   const [isDocModalOpen, setIsDocModalOpen] = useState(false);
   const [docForm, setDocForm] = useState({
     documento_frente: null as File | null,
@@ -101,50 +99,57 @@ export const UserDashboard = () => {
   const [docPreviews, setDocPreviews] = useState<{[key: string]: string}>({});
 
   useEffect(() => {
+    console.log('[UserDashboard] Componente montado');
     return () => {
-      isMounted.current = false;
+      console.log('[UserDashboard] Componente desmontado');
     };
   }, []);
 
   const fetchData = useCallback(async () => {
-    if (!user?.id || fetchAttempted.current) {
+    console.log('[UserDashboard] fetchData chamado');
+    if (!user?.id) {
       setLoading(false);
       return;
     }
 
-    fetchAttempted.current = true;
     setLoading(true);
 
     try {
       // Busca dados KYC
       const kycResponse = await kycService.getStatus();
-      if (isMounted.current) {
-        setKycData(kycResponse);
-      }
+      setKycData(kycResponse);
 
       // Busca tokens
       const tokensResponse = await tokenService.getByOwner(Number(user.id));
-      if (isMounted.current) {
-        setTokens(tokensResponse);
-      }
+      setTokens(tokensResponse);
 
-      // Busca propriedades
-      const propertiesResponse = await apiClient.get(`/api/rwa/user/${user.id}`);
-      if (isMounted.current) {
-        setProperties(propertiesResponse.data || []);
-        setTotalPages(Math.ceil((propertiesResponse.data?.length || 0) / itemsPerPage));
-      }
+      // Busca propriedades (RWAs do usuário)
+      const propertiesResponse = await apiClient.get('/api/rwa');
+      const allProperties = propertiesResponse.data || [];
+      console.log('[UserDashboard] Todos os RWAs recebidos da API:', allProperties);
+      console.log('[UserDashboard] Usuário logado:', user);
+      // Filtro flexível
+      const userProperties = allProperties.filter((p: any) =>
+        p.userId === user.id ||
+        (p.owner && p.owner.id === user.id)
+      );
+      console.log('[UserDashboard] Propriedades após filtro:', userProperties);
+      setProperties(userProperties);
+      setTotalPages(Math.ceil((userProperties.length || 0) / itemsPerPage));
+      console.log('[UserDashboard] setProperties chamado com:', userProperties);
     } catch (error: any) {
       console.error('Erro ao buscar dados:', error);
       if (error.response?.status === 401) {
         navigate('/login');
       }
     } finally {
-      if (isMounted.current) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
   }, [user?.id, navigate]);
+
+  useEffect(() => {
+    console.log('[UserDashboard] useEffect: properties mudou para:', properties);
+  }, [properties]);
 
   useEffect(() => {
     fetchData();
@@ -154,8 +159,8 @@ export const UserDashboard = () => {
   useEffect(() => {
     if (kycData?.status === 'unauthorized') {
       toast({
-        title: 'Sessão expirada',
-        description: 'Por favor, faça login novamente para acessar seus dados.',
+        title: 'Session expired',
+        description: 'Please log in again to access your data.',
         status: 'warning',
         duration: 8000,
         isClosable: true,
@@ -172,12 +177,12 @@ export const UserDashboard = () => {
         cpf: formData.cpf
       });
       onClose();
-      toast({ title: 'Dados enviados!', status: 'success' });
+      toast({ title: 'Data sent!', status: 'success' });
       setIsDocModalOpen(true);
       fetchData();
     } catch (err: any) {
       toast({ 
-        title: 'Erro ao enviar dados', 
+        title: 'Error sending data', 
         description: err.message,
         status: 'error' 
       });
@@ -233,12 +238,12 @@ export const UserDashboard = () => {
       if (docForm.selfie_2) formData.append('selfie_2', docForm.selfie_2);
       
       await kycService.submitDocuments(formData);
-      toast({ title: 'Documentos enviados!', status: 'success' });
+      toast({ title: 'Documents sent!', status: 'success' });
       setIsDocModalOpen(false);
       fetchData();
     } catch (err: any) {
       toast({ 
-        title: 'Erro ao enviar documentos', 
+        title: 'Error sending documents', 
         description: err.message,
         status: 'error' 
       });
@@ -247,14 +252,17 @@ export const UserDashboard = () => {
     }
   };
 
+  // LOG: propriedades antes do render
+  console.log('[UserDashboard] Propriedades para renderizar:', properties);
+
   if (kycData?.status === 'unauthorized') {
     return (
       <Box p={8} textAlign="center">
         <Alert status="warning" mb={6} justifyContent="center">
           <AlertIcon />
-          Sua sessão expirou. Por favor, faça login novamente.
+          Your session has expired. Please log in again.
         </Alert>
-        <Button colorScheme="blue" onClick={() => navigate('/login')}>Fazer login</Button>
+        <Button colorScheme="blue" onClick={() => navigate('/login')}>Log In</Button>
       </Box>
     );
   }
@@ -263,63 +271,78 @@ export const UserDashboard = () => {
     return (
       <Box p={8} textAlign="center">
         <Spinner size="xl" />
-        <Text mt={4}>Carregando dados da carteira...</Text>
+        <Text mt={4}>Loading wallet data...</Text>
       </Box>
     );
   }
 
   return (
     <Container maxW="container.xl" py={8}>
+      {/* Card with logged-in user information */}
+      <Card mb={8} bg="rgba(255,255,255,0.10)" borderColor="bgGrid" borderWidth="1px">
+        <CardHeader>
+          <HStack spacing={4} align="center">
+            <Avatar name={user?.name || user?.email} size="lg" />
+            <Box>
+              <Heading size="md" color="white">{user?.name || 'User'}</Heading>
+              <Text color="gray.300">{user?.email}</Text>
+              {user?.address && (
+                <Text color="gray.400" fontSize="sm">Wallet: {user.address}</Text>
+              )}
+            </Box>
+          </HStack>
+        </CardHeader>
+      </Card>
       <Grid templateColumns="repeat(2, 1fr)" gap={8}>
-        {/* Resumo */}
+        {/* Summary */}
         <GridItem colSpan={2}>
           <Flex gap={8}>
             <Card bg="rgba(255,255,255,0.05)" borderColor="bgGrid" borderWidth="1px" flex="1">
               <CardHeader>
-                <Heading size="md" color="white">Meus Investimentos</Heading>
+                <Heading size="md" color="white">My Investments</Heading>
               </CardHeader>
               <CardBody>
                 <VStack spacing={4} align="stretch">
                   <Flex justify="space-between" align="center">
-                    <Text color="text.dim">Total Investido</Text>
+                    <Text color="text.dim">Total Invested</Text>
                     <Text fontSize="xl" fontWeight="bold">${tokens.reduce((acc, t) => acc + (t.property?.currentValue || 0), 0).toLocaleString('en-US')}</Text>
                   </Flex>
                   <Flex justify="space-between" align="center">
-                    <Text color="text.dim">Tokens Possuídos</Text>
+                    <Text color="text.dim">Tokens Owned</Text>
                     <Text fontSize="xl" fontWeight="bold">{tokens.length}</Text>
                   </Flex>
                   <Divider />
-                  <Button variant="outline" onClick={() => navigate('/marketplace')}>Ver Histórico</Button>
+                  <Button variant="outline" onClick={() => navigate('/marketplace')}>View History</Button>
                 </VStack>
               </CardBody>
             </Card>
 
-            {/* Status KYC */}
+            {/* KYC Status */}
             <Card bg="rgba(255,255,255,0.05)" borderColor="bgGrid" borderWidth="1px" flex="1">
               <CardHeader>
-                <Heading size="md" color="white">Status KYC</Heading>
+                <Heading size="md" color="white">KYC Status</Heading>
               </CardHeader>
               <CardBody>
                 <VStack spacing={4} align="stretch">
                   <Flex justify="space-between" align="center">
                     <Text color="text.dim">Status:</Text>
                     <Badge colorScheme={getKYCStatusColor(getKYCStatus())}>
-                      {getKYCStatus() === 'not_started' ? 'Pendente' : getKYCStatus()}
+                      {getKYCStatus() === 'not_started' ? 'Pending' : getKYCStatus()}
                     </Badge>
                   </Flex>
                   {getKYCStatus() !== 'approved' && (
                     <Alert status="warning">
                       <AlertIcon />
                       <Box>
-                        <AlertTitle>KYC Pendente</AlertTitle>
+                        <AlertTitle>KYC Pending</AlertTitle>
                         <AlertDescription>
-                          Complete seu cadastro para poder investir e criar tokens RWA
+                          Complete your registration to invest and create RWA tokens
                         </AlertDescription>
                       </Box>
                     </Alert>
                   )}
                   <Button colorScheme="blue" onClick={handleStartKYC} isDisabled={getKYCStatus() === 'approved'}>
-                    {getKYCStatus() === 'not_started' ? 'Iniciar KYC' : 'Verificar KYC'}
+                    {getKYCStatus() === 'not_started' ? 'Start KYC' : 'Check KYC'}
                   </Button>
                 </VStack>
               </CardBody>
@@ -327,59 +350,69 @@ export const UserDashboard = () => {
           </Flex>
         </GridItem>
 
-        {/* Tokens e Propriedades detalhados */}
+        {/* Detailed Tokens and Properties */}
         <GridItem colSpan={2}>
           <Card bg="rgba(255,255,255,0.05)" borderColor="bgGrid" borderWidth="1px">
             <CardHeader>
               <Flex justify="space-between" align="center">
-                <Heading size="md" color="white">Minhas Propriedades</Heading>
+                <Heading size="md" color="white">My Properties</Heading>
                 <Button
                   size="sm"
                   colorScheme="blue"
                   onClick={() => navigate('/assets/new')}
-                  isDisabled={getKYCStatus() !== 'approved'}
                 >
-                  Adicionar RWA
+                  Add RWA
                 </Button>
               </Flex>
             </CardHeader>
             <CardBody>
               {properties.length > 0 ? (
-                <TableContainer>
-                  <Table size="sm">
-                    <Thead>
+                <TableContainer borderRadius="md" overflow="hidden" border="1px solid" borderColor="gray.700" bg="rgba(255,255,255,0.01)">
+                  <Table size="sm" variant="simple">
+                    <Thead bg="gray.800">
                       <Tr>
-                        <Th>Nome</Th>
-                        <Th>Localização</Th>
-                        <Th>Valor</Th>
-                        <Th>Status</Th>
+                        <Th color="gray.300" fontWeight="bold" py={3}>NAME</Th>
+                        <Th color="gray.300" fontWeight="bold" py={3}>LOCATION</Th>
+                        <Th color="gray.300" fontWeight="bold" py={3}>VALUE</Th>
+                        <Th color="gray.300" fontWeight="bold" py={3}>STATUS</Th>
                       </Tr>
                     </Thead>
                     <Tbody>
-                      {properties
-                        .slice((page - 1) * itemsPerPage, page * itemsPerPage)
-                        .map(property => (
-                          <Tr key={property.id}>
-                            <Td>{property.name}</Td>
-                            <Td>{property.location}</Td>
-                            <Td>${property.currentValue}</Td>
-                            <Td>
-                              <Badge
-                                colorScheme={
-                                  property.status === 'active' ? 'green' :
-                                  property.status === 'inactive' ? 'gray' : 'red'
-                                }
-                              >
-                                {property.status}
-                              </Badge>
-                            </Td>
-                          </Tr>
-                        ))}
+                      {properties.map((property, idx) => (
+                        <Tr
+                          key={property.id}
+                          bg={idx % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.08)'}
+                          _hover={{ bg: 'blue.900' }}
+                          transition="background 0.2s"
+                        >
+                          <Td color="gray.100" fontWeight="medium" py={3}>{property.name}</Td>
+                          <Td color="gray.200" py={3}>{property.city}</Td>
+                          <Td color="gray.200" py={3}>${property.currentValue.toLocaleString('en-US')}</Td>
+                          <Td py={3}>
+                            <Badge
+                              px={3}
+                              py={1}
+                              borderRadius="md"
+                              fontWeight="bold"
+                              colorScheme={
+                                property.status === 'active' ? 'green' :
+                                property.status === 'inactive' ? 'gray' : 'red'
+                              }
+                              variant="solid"
+                              fontSize="sm"
+                              textTransform="uppercase"
+                              letterSpacing="wider"
+                            >
+                              {property.status}
+                            </Badge>
+                          </Td>
+                        </Tr>
+                      ))}
                     </Tbody>
                   </Table>
                 </TableContainer>
               ) : (
-                <Text color="text.dim">Nenhuma propriedade encontrada</Text>
+                <Text color="text.dim">No properties found</Text>
               )}
               {totalPages > 1 && (
                 <HStack justify="center" mt={4}>
@@ -388,15 +421,15 @@ export const UserDashboard = () => {
                     onClick={() => setPage(p => Math.max(1, p - 1))}
                     isDisabled={page === 1}
                   >
-                    Anterior
+                    Previous
                   </Button>
-                  <Text>Página {page} de {totalPages}</Text>
+                  <Text>Page {page} of {totalPages}</Text>
                   <Button
                     size="sm"
                     onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                     isDisabled={page === totalPages}
                   >
-                    Próxima
+                    Next
                   </Button>
                 </HStack>
               )}
@@ -405,21 +438,21 @@ export const UserDashboard = () => {
         </GridItem>
       </Grid>
 
-      {/* Modal de KYC Inicial */}
+      {/* KYC Initial Modal */}
       <Modal isOpen={isOpen} onClose={onClose}>
         <ModalOverlay />
         <ModalContent>
           <form onSubmit={handleKYCSubmit}>
-            <ModalHeader>Complete seu Cadastro</ModalHeader>
+            <ModalHeader>Complete your Registration</ModalHeader>
             <ModalCloseButton />
             <ModalBody>
               <VStack spacing={4}>
                 <FormControl isRequired>
-                  <FormLabel>Nome Completo</FormLabel>
+                  <FormLabel>Full Name</FormLabel>
                   <Input
                     value={formData.fullName}
                     onChange={(e) => setFormData(prev => ({ ...prev, fullName: e.target.value }))}
-                    placeholder="Digite seu nome completo"
+                    placeholder="Enter your full name"
                   />
                 </FormControl>
 
@@ -428,55 +461,55 @@ export const UserDashboard = () => {
                   <Input
                     value={formData.cpf}
                     onChange={(e) => setFormData(prev => ({ ...prev, cpf: e.target.value }))}
-                    placeholder="Digite seu CPF"
+                    placeholder="Enter your CPF"
                   />
                 </FormControl>
               </VStack>
             </ModalBody>
             <ModalFooter>
               <Button variant="ghost" mr={3} onClick={onClose}>
-                Cancelar
+                Cancel
               </Button>
               <Button type="submit" colorScheme="blue">
-                Salvar
+                Save
               </Button>
             </ModalFooter>
           </form>
         </ModalContent>
       </Modal>
 
-      {/* Modal de upload de documentos */}
+      {/* Document Upload Modal */}
       <Modal isOpen={isDocModalOpen} onClose={() => setIsDocModalOpen(false)}>
         <ModalOverlay />
         <ModalContent>
           <form onSubmit={handleDocSubmit}>
-            <ModalHeader>Upload de Documentos KYC</ModalHeader>
+            <ModalHeader>Upload KYC Documents</ModalHeader>
             <ModalCloseButton />
             <ModalBody>
               <VStack spacing={4}>
                 <FormControl isRequired>
-                  <FormLabel>Documento (frente)</FormLabel>
+                  <FormLabel>Document (front)</FormLabel>
                   <Input name="documento_frente" type="file" accept="image/*" onChange={handleDocInput} />
                   {docPreviews.documento_frente && (
-                    <Image src={docPreviews.documento_frente} alt="Frente" boxSize="60px" objectFit="cover" borderRadius="md" border="1px solid #444" />
+                    <Image src={docPreviews.documento_frente} alt="Front" boxSize="60px" objectFit="cover" borderRadius="md" border="1px solid #444" />
                   )}
                 </FormControl>
                 <FormControl isRequired>
-                  <FormLabel>Documento (verso)</FormLabel>
+                  <FormLabel>Document (back)</FormLabel>
                   <Input name="documento_verso" type="file" accept="image/*" onChange={handleDocInput} />
                   {docPreviews.documento_verso && (
-                    <Image src={docPreviews.documento_verso} alt="Verso" boxSize="60px" objectFit="cover" borderRadius="md" border="1px solid #444" />
+                    <Image src={docPreviews.documento_verso} alt="Back" boxSize="60px" objectFit="cover" borderRadius="md" border="1px solid #444" />
                   )}
                 </FormControl>
                 <FormControl isRequired>
-                  <FormLabel>Selfie segurando documento</FormLabel>
+                  <FormLabel>Selfie holding document</FormLabel>
                   <Input name="selfie_1" type="file" accept="image/*" onChange={handleDocInput} />
                   {docPreviews.selfie_1 && (
                     <Image src={docPreviews.selfie_1} alt="Selfie 1" boxSize="60px" objectFit="cover" borderRadius="md" border="1px solid #444" />
                   )}
                 </FormControl>
                 <FormControl isRequired>
-                  <FormLabel>Selfie adicional</FormLabel>
+                  <FormLabel>Additional Selfie</FormLabel>
                   <Input name="selfie_2" type="file" accept="image/*" onChange={handleDocInput} />
                   {docPreviews.selfie_2 && (
                     <Image src={docPreviews.selfie_2} alt="Selfie 2" boxSize="60px" objectFit="cover" borderRadius="md" border="1px solid #444" />
@@ -486,10 +519,10 @@ export const UserDashboard = () => {
             </ModalBody>
             <ModalFooter>
               <Button variant="ghost" mr={3} onClick={() => setIsDocModalOpen(false)}>
-                Cancelar
+                Cancel
               </Button>
               <Button type="submit" colorScheme="blue">
-                Enviar
+                Send
               </Button>
             </ModalFooter>
           </form>

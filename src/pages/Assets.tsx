@@ -31,7 +31,7 @@ export const Assets = () => {
       const imagesObj: {[key: string]: string} = {};
       await Promise.all(data.map(async (property) => {
         try {
-          const images = await imageService.getByRWAId(Number(property.id || 0));
+          const images = await imageService.getByRWAId(property.id !== undefined ? Number(property.id) : 0);
           if (!isMounted.current) return;
           
           if (images.length > 0) {
@@ -205,7 +205,7 @@ export const Assets = () => {
                 <Flex justify="space-between" align="center" wrap="wrap" gap={2}>
                   <VStack align="flex-start" spacing={1}>
                     <Text fontWeight="bold" fontSize="xl" color="accent.500">
-                      {formatCurrency(property.price)}
+                      {formatCurrency(property.price ?? 0)}
                     </Text>
                     <Text fontSize="xs" color="text.dim">
                       {property.availableTokens || 0} of {property.totalTokens || 0} tokens available

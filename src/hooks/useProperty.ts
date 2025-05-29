@@ -108,16 +108,26 @@ export const useProperty = () => {
       country = city;
     }
     
+    // Garantir que os valores numéricos sejam números
+    const currentValue = typeof property.price === 'string' ? parseFloat(property.price) : property.price || 0;
+    const totalTokens = typeof property.totalTokens === 'string' ? parseInt(property.totalTokens) : property.totalTokens || 0;
+    const yearBuilt = property.metadata?.yearBuilt ? 
+      (typeof property.metadata.yearBuilt === 'string' ? parseInt(property.metadata.yearBuilt) : property.metadata.yearBuilt) : 
+      undefined;
+    const sizeM2 = property.metadata?.squareMeters ? 
+      (typeof property.metadata.squareMeters === 'string' ? parseFloat(property.metadata.squareMeters) : property.metadata.squareMeters) : 
+      undefined;
+    
     return {
-      name: property.name,
-      description: property.description,
+      name: property.name || '',
+      description: property.description || '',
       city,
       country,
-      currentValue: property.price,
-      totalTokens: property.totalTokens,
-      yearBuilt: property.metadata?.yearBuilt,
-      sizeM2: property.metadata?.squareMeters,
-      gpsCoordinates: property.metadata?.gpsCoordinates || '',
+      current_value: currentValue,
+      total_tokens: totalTokens,
+      year_built: yearBuilt,
+      size_m2: sizeM2,
+      gps_coordinates: property.metadata?.gpsCoordinates || '',
       status: property.status || 'active'
     };
   }, []);

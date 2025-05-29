@@ -243,94 +243,94 @@ export const Wallet = () => {
     return (
       <Box p={8} textAlign="center">
         <Spinner size="xl" />
-        <Text mt={4}>Carregando dados da carteira...</Text>
+        <Text mt={4}>Loading wallet data...</Text>
       </Box>
     );
   }
 
   return (
     <Container maxW="container.xl" py={8}>
-      <Heading size="xl" mb={8}>Minha Conta</Heading>
+      <Heading size="xl" mb={8}>My Account</Heading>
       <Flex gap={8} direction={{ base: 'column', lg: 'row' }}>
-        {/* Perfil */}
+        {/* Profile */}
         <Card bg="rgba(255,255,255,0.05)" borderColor="bgGrid" borderWidth="1px" flex="1">
           <CardHeader>
-            <Heading size="md" color="white">Perfil</Heading>
+            <Heading size="md" color="white">Profile</Heading>
           </CardHeader>
           <CardBody>
             <VStack spacing={4} align="stretch">
               <Flex align="center" gap={4}>
-                <Avatar size="xl" name={user?.name || user?.address || 'Usuário'} />
+                <Avatar size="xl" name={user?.name || user?.address || 'User'} />
                 <Box>
-                  <Text fontSize="lg" fontWeight="bold">{user?.name || 'Usuário'}</Text>
+                  <Text fontSize="lg" fontWeight="bold">{user?.name || 'User'}</Text>
                   <Text color="text.dim">{user?.address}</Text>
                 </Box>
               </Flex>
               <Divider />
-              <Button variant="outline">Editar Perfil</Button>
+              <Button variant="outline">Edit Profile</Button>
             </VStack>
           </CardBody>
         </Card>
 
-        {/* Investimentos */}
+        {/* Investments */}
         <Card bg="rgba(255,255,255,0.05)" borderColor="bgGrid" borderWidth="1px" flex="1">
           <CardHeader>
-            <Heading size="md" color="white">Meus Investimentos</Heading>
+            <Heading size="md" color="white">My Investments</Heading>
           </CardHeader>
           <CardBody>
             <VStack spacing={4} align="stretch">
               <Flex justify="space-between" align="center">
-                <Text color="text.dim">Total Investido</Text>
+                <Text color="text.dim">Total Invested</Text>
                 <Text fontSize="xl" fontWeight="bold">${tokens.reduce((acc, t) => acc + (t.property?.currentValue || 0), 0).toLocaleString('en-US')}</Text>
               </Flex>
               <Flex justify="space-between" align="center">
-                <Text color="text.dim">Tokens Possuídos</Text>
+                <Text color="text.dim">Tokens Owned</Text>
                 <Text fontSize="xl" fontWeight="bold">{tokens.length}</Text>
               </Flex>
               <Divider />
-              <Button variant="outline" onClick={() => navigate('/marketplace')}>Ver Histórico</Button>
+              <Button variant="outline" onClick={() => navigate('/marketplace')}>View History</Button>
             </VStack>
           </CardBody>
         </Card>
       </Flex>
 
-      {/* Status KYC */}
+      {/* KYC Status */}
       <Card bg="rgba(255,255,255,0.05)" borderColor="bgGrid" borderWidth="1px" mt={8}>
         <CardHeader>
-          <Heading size="md" color="white">Status KYC</Heading>
+          <Heading size="md" color="white">KYC Status</Heading>
         </CardHeader>
         <CardBody>
           <VStack spacing={4} align="stretch">
             <Flex justify="space-between" align="center">
               <Text color="text.dim">Status:</Text>
               <Badge colorScheme={getKYCStatusColor(getKYCStatus())}>
-                {getKYCStatus() === 'not_started' ? 'Pendente' : getKYCStatus()}
+                {getKYCStatus() === 'not_started' ? 'Pending' : getKYCStatus()}
               </Badge>
             </Flex>
             {getKYCStatus() !== 'approved' && (
               <Alert status="warning">
                 <AlertIcon />
                 <Box>
-                  <AlertTitle>KYC Pendente</AlertTitle>
+                  <AlertTitle>KYC Pending</AlertTitle>
                   <AlertDescription>
-                    Complete seu cadastro para poder investir e criar tokens RWA
+                    Complete your registration to invest and create RWA tokens
                   </AlertDescription>
                 </Box>
               </Alert>
             )}
             <Button colorScheme="blue" onClick={handleStartKYC} isDisabled={getKYCStatus() === 'approved'}>
-              {getKYCStatus() === 'not_started' ? 'Iniciar KYC' : 'Verificar KYC'}
+              {getKYCStatus() === 'not_started' ? 'Start KYC' : 'Check KYC'}
             </Button>
           </VStack>
         </CardBody>
       </Card>
 
-      {/* Tokens e Propriedades detalhados */}
+      {/* Tokens and Properties */}
       <Flex gap={8} direction={{ base: 'column', lg: 'row' }} mt={8}>
         {/* Tokens */}
         <Card bg="rgba(255,255,255,0.05)" borderColor="bgGrid" borderWidth="1px" flex="1">
           <CardHeader>
-            <Heading size="md" color="white">Meus Tokens</Heading>
+            <Heading size="md" color="white">My Tokens</Heading>
           </CardHeader>
           <CardBody>
             {tokens.length > 0 ? (
@@ -339,8 +339,8 @@ export const Wallet = () => {
                   <Thead>
                     <Tr>
                       <Th>Token</Th>
-                      <Th>Propriedade</Th>
-                      <Th>Valor</Th>
+                      <Th>Property</Th>
+                      <Th>Value</Th>
                     </Tr>
                   </Thead>
                   <Tbody>
@@ -355,23 +355,22 @@ export const Wallet = () => {
                 </Table>
               </TableContainer>
             ) : (
-              <Text color="text.dim">Nenhum token encontrado</Text>
+              <Text color="text.dim">No tokens found</Text>
             )}
           </CardBody>
         </Card>
 
-        {/* Propriedades */}
+        {/* Properties */}
         <Card bg="rgba(255,255,255,0.05)" borderColor="bgGrid" borderWidth="1px" flex="1">
           <CardHeader>
             <Flex justify="space-between" align="center">
-              <Heading size="md" color="white">Minhas Propriedades</Heading>
+              <Heading size="md" color="white">My Properties</Heading>
               <Button
                 size="sm"
                 colorScheme="blue"
                 onClick={() => navigate('/assets/new')}
-                isDisabled={getKYCStatus() !== 'approved'}
               >
-                Adicionar RWA
+                Add RWA
               </Button>
             </Flex>
           </CardHeader>
@@ -381,9 +380,9 @@ export const Wallet = () => {
                 <Table size="sm">
                   <Thead>
                     <Tr>
-                      <Th>Nome</Th>
-                      <Th>Localização</Th>
-                      <Th>Valor</Th>
+                      <Th>Name</Th>
+                      <Th>Location</Th>
+                      <Th>Value</Th>
                       <Th>Status</Th>
                     </Tr>
                   </Thead>
@@ -411,7 +410,7 @@ export const Wallet = () => {
                 </Table>
               </TableContainer>
             ) : (
-              <Text color="text.dim">Nenhuma propriedade encontrada</Text>
+              <Text color="text.dim">No properties found</Text>
             )}
             {totalPages > 1 && (
               <HStack justify="center" mt={4}>
@@ -420,15 +419,15 @@ export const Wallet = () => {
                   onClick={() => setPage(p => Math.max(1, p - 1))}
                   isDisabled={page === 1}
                 >
-                  Anterior
+                  Previous
                 </Button>
-                <Text>Página {page} de {totalPages}</Text>
+                <Text>Page {page} of {totalPages}</Text>
                 <Button
                   size="sm"
                   onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                   isDisabled={page === totalPages}
                 >
-                  Próxima
+                  Next
                 </Button>
               </HStack>
             )}
@@ -436,26 +435,26 @@ export const Wallet = () => {
         </Card>
       </Flex>
 
-      {/* Botão para abrir modal de documentos após dados básicos */}
+      {/* Button to open document modal after basic data */}
       <Button colorScheme="blue" mt={4} onClick={openDocModal}>
-        Enviar Documentos (KYC)
+        Upload Documents (KYC)
       </Button>
 
-      {/* Modal de KYC Inicial */}
+      {/* KYC Initial Modal */}
       <Modal isOpen={isOpen} onClose={onClose}>
         <ModalOverlay />
         <ModalContent>
           <form onSubmit={handleKYCSubmit}>
-            <ModalHeader>Complete seu Cadastro</ModalHeader>
+            <ModalHeader>Complete your Registration</ModalHeader>
             <ModalCloseButton />
             <ModalBody>
               <VStack spacing={4}>
                 <FormControl isRequired>
-                  <FormLabel>Nome Completo</FormLabel>
+                  <FormLabel>Full Name</FormLabel>
                   <Input
                     value={formData.fullName}
                     onChange={(e) => setFormData(prev => ({ ...prev, fullName: e.target.value }))}
-                    placeholder="Digite seu nome completo"
+                    placeholder="Enter your full name"
                   />
                 </FormControl>
 
@@ -464,55 +463,55 @@ export const Wallet = () => {
                   <Input
                     value={formData.cpf}
                     onChange={(e) => setFormData(prev => ({ ...prev, cpf: e.target.value }))}
-                    placeholder="Digite seu CPF"
+                    placeholder="Enter your CPF"
                   />
                 </FormControl>
               </VStack>
             </ModalBody>
             <ModalFooter>
               <Button variant="ghost" mr={3} onClick={onClose}>
-                Cancelar
+                Cancel
               </Button>
               <Button type="submit" colorScheme="blue">
-                Salvar
+                Save
               </Button>
             </ModalFooter>
           </form>
         </ModalContent>
       </Modal>
 
-      {/* Modal de upload de documentos */}
+      {/* Document upload modal */}
       <Modal isOpen={isDocModalOpen} onClose={closeDocModal}>
         <ModalOverlay />
         <ModalContent>
           <form onSubmit={handleDocSubmit}>
-            <ModalHeader>Upload de Documentos KYC</ModalHeader>
+            <ModalHeader>KYC Document Upload</ModalHeader>
             <ModalCloseButton />
             <ModalBody>
               <VStack spacing={4}>
                 <FormControl isRequired>
-                  <FormLabel>Documento (frente)</FormLabel>
+                  <FormLabel>Document (front)</FormLabel>
                   <Input name="documento_frente" type="file" accept="image/*" onChange={handleDocInput} />
                   {docPreviews.documento_frente && (
-                    <Image src={docPreviews.documento_frente} alt="Frente" boxSize="60px" objectFit="cover" borderRadius="md" border="1px solid #444" />
+                    <Image src={docPreviews.documento_frente} alt="Front" boxSize="60px" objectFit="cover" borderRadius="md" border="1px solid #444" />
                   )}
                 </FormControl>
                 <FormControl isRequired>
-                  <FormLabel>Documento (verso)</FormLabel>
+                  <FormLabel>Document (back)</FormLabel>
                   <Input name="documento_verso" type="file" accept="image/*" onChange={handleDocInput} />
                   {docPreviews.documento_verso && (
-                    <Image src={docPreviews.documento_verso} alt="Verso" boxSize="60px" objectFit="cover" borderRadius="md" border="1px solid #444" />
+                    <Image src={docPreviews.documento_verso} alt="Back" boxSize="60px" objectFit="cover" borderRadius="md" border="1px solid #444" />
                   )}
                 </FormControl>
                 <FormControl isRequired>
-                  <FormLabel>Selfie segurando documento</FormLabel>
+                  <FormLabel>Selfie holding document</FormLabel>
                   <Input name="selfie_1" type="file" accept="image/*" onChange={handleDocInput} />
                   {docPreviews.selfie_1 && (
                     <Image src={docPreviews.selfie_1} alt="Selfie 1" boxSize="60px" objectFit="cover" borderRadius="md" border="1px solid #444" />
                   )}
                 </FormControl>
                 <FormControl isRequired>
-                  <FormLabel>Selfie adicional</FormLabel>
+                  <FormLabel>Additional selfie</FormLabel>
                   <Input name="selfie_2" type="file" accept="image/*" onChange={handleDocInput} />
                   {docPreviews.selfie_2 && (
                     <Image src={docPreviews.selfie_2} alt="Selfie 2" boxSize="60px" objectFit="cover" borderRadius="md" border="1px solid #444" />
@@ -522,10 +521,10 @@ export const Wallet = () => {
             </ModalBody>
             <ModalFooter>
               <Button variant="ghost" mr={3} onClick={closeDocModal}>
-                Cancelar
+                Cancel
               </Button>
-              <Button type="submit" colorScheme="blue" isLoading={loading}>
-                Enviar Documentos
+              <Button type="submit" colorScheme="blue">
+                Send
               </Button>
             </ModalFooter>
           </form>

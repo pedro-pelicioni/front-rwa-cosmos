@@ -56,11 +56,17 @@ export const PaymentPage = () => {
 
   const { rwaId, tokenId, quantity, pricePerToken } = params;
 
+  // LOG: parâmetros recebidos
+  console.log('[PaymentPage] Parâmetros recebidos:', { rwaId, tokenId, quantity, pricePerToken });
+
   // Validação dos parâmetros
   const rwaIdNum = Number(rwaId);
   const tokenIdNum = Number(tokenId);
   const quantityNum = Number(quantity);
   const pricePerTokenNum = Number(pricePerToken);
+
+  // LOG: parâmetros convertidos
+  console.log('[PaymentPage] Parâmetros convertidos:', { rwaIdNum, tokenIdNum, quantityNum, pricePerTokenNum });
 
   if (
     isNaN(rwaIdNum) ||
@@ -93,26 +99,93 @@ export const PaymentPage = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        
         // Buscar listing do marketplace
         const listings = await marketplaceService.listAvailable();
-        const listing = listings.data.find((l: any) => l.token?.id === tokenIdNum);
+        // LOG: listings retornados com detalhes
+        console.log('[PaymentPage] Listings retornados (detalhado):', JSON.stringify(listings.data, null, 2));
+        // LOG: tokenIdNum procurado
+        console.log('[PaymentPage] Procurando tokenIdNum:', tokenIdNum);
         
+        // Ajustando a lógica de busca para ser mais flexível
+        const listing = listings.data.find((l: any) => {
+          console.log('[PaymentPage] Verificando listing:', {
+            tokenId: l.token?.id,
+            tokenIdNum: tokenIdNum,
+            match: l.token && (Number(l.token.id) === tokenIdNum || l.token.id === tokenIdNum.toString())
+          });
+          return l.token && (Number(l.token.id) === tokenIdNum || l.token.id === tokenIdNum.toString());
+        });
+        
+        // LOG: resultado do find
+        console.log('[PaymentPage] Listing encontrado:', listing);
+
+        // Verificar se o token existe
         if (!listing) {
-          setError('Token não encontrado ou não está disponível para venda');
-          return;
+          // Verificar se o token existe em algum outro lugar
+          try {
+            const tokens = await tokenService.getByRWAId(rwaIdNum);
+            console.log('[PaymentPage] Tokens do RWA:', tokens);
+            const tokenObj = tokens.find(t => t.id === tokenIdNum);
+            if (tokenObj) {
+              // Se o usuário for o owner, não pode comprar
+              if (tokenObj.owner_user_id === user.id) {
+                setError(`Você é o proprietário do token ${tokenIdNum} e não pode comprá-lo.`);
+                return;
+              }
+              // Criar um listing temporário para permitir a venda
+              const tempListing = {
+                id: -1,
+                token_id: tokenObj.id,
+                seller_id: tokenObj.owner_user_id,
+                buyer_id: null,
+                quantity: 1,
+                price_per_token: pricePerTokenNum.toString(),
+                transaction_hash: null,
+                signature: null,
+                status: 'available',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                token: tokenObj,
+                seller: { id: tokenObj.owner_user_id, email: '', wallet_address: '', created_at: '', updated_at: '' }
+              };
+              setTokenInfo(tokenObj);
+              setSaleInfo(tempListing);
+              // prosseguir normalmente
+            } else {
+              setError(`Token ${tokenIdNum} não encontrado. Tokens disponíveis: ${listings.data.map((l: any) => l.token.id).join(', ')}`);
+              return;
+            }
+          } catch (err: any) {
+            console.error('[PaymentPage] Erro ao verificar token:', err);
+            setError(`Token ${tokenIdNum} não encontrado ou não está disponível para venda. Erro: ${err.message}`);
+            return;
+          }
+        } else {
+          // Verificar se o token está disponível para venda
+          if (listing.status !== 'available' && listing.status !== 'pending') {
+            setError(`Token ${tokenIdNum} não está disponível para venda no momento. Status atual: ${listing.status}`);
+            return;
+          }
+          // Se o usuário for o owner, não pode comprar
+          if (listing.token?.owner_user_id === user.id) {
+            setError(`Você é o proprietário do token ${tokenIdNum} e não pode comprá-lo.`);
+            return;
+          }
+          setTokenInfo(listing.token);
+          setSaleInfo(listing);
         }
 
         // Buscar asset pelo rwaId
         const asset = await rwaService.getById(rwaIdNum);
+        // LOG: asset retornado
+        console.log('[PaymentPage] Asset retornado:', asset);
         setAssetInfo(asset);
-        setTokenInfo(listing.token);
-        setSaleInfo(listing);
-
         // Buscar imagens do imóvel
         try {
           const imagesRes = await apiClient.get(`/api/rwa/images/rwa/${asset.id}`);
           const images = imagesRes.data;
+          // LOG: imagens retornadas
+          console.log('[PaymentPage] Imagens retornadas:', images);
           if (Array.isArray(images) && images.length > 0) {
             setMainImage(images[0].cid_link || images[0].file_path || images[0].image_data || '');
           }
@@ -120,6 +193,8 @@ export const PaymentPage = () => {
           // fallback para asset.images ou asset.metadata.images
           const metaImages = Array.isArray(asset?.metadata?.images) ? asset.metadata.images : [];
           const assetImages = Array.isArray(asset?.images) ? asset.images : [];
+          // LOG: fallback imagens
+          console.log('[PaymentPage] Fallback imagens:', { metaImages, assetImages });
           if (metaImages.length > 0) {
             setMainImage(metaImages[0]);
           } else if (assetImages.length > 0) {
@@ -129,7 +204,7 @@ export const PaymentPage = () => {
           }
         }
       } catch (err) {
-        console.error('Erro ao carregar dados:', err);
+        console.error('[PaymentPage] Erro ao carregar dados:', err);
         setError('Erro ao carregar informações do pagamento');
         toast({
           title: 'Erro',
@@ -148,6 +223,7 @@ export const PaymentPage = () => {
   const handlePayment = async () => {
     try {
       setProcessing(true);
+      
       // 1. Iniciar processo de venda
       const sale = await tokenService.initiateSale(
         tokenIdNum,
@@ -157,19 +233,19 @@ export const PaymentPage = () => {
       setSaleInfo(sale);
 
       // 2. Obter endereço da wallet
-      const walletAddress = await getAddress();
+      const walletAddress = await getAddress?.();
 
       // 3. Criar mensagem para assinatura
       const message = `Confirm purchase of ${quantityNum} tokens from ${tokenInfo.token_identifier} for ${pricePerTokenNum * quantityNum} USD`;
 
       // 4. Obter assinatura
-      const signature = await signMessage(message);
+      const signature = await signMessage?.(message);
 
       // 5. Confirmar venda
       const confirmedSale = await tokenService.confirmSale(
         sale.id,
         '0x0000000000000000000000000000000000000000000000000000000000000000', // txHash simulado
-        signature
+        signature?.signature || ''
       );
 
       if (confirmedSale.status === 'completed') {

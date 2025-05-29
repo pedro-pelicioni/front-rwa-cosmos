@@ -24,6 +24,7 @@ import { getImageFromIDB, setImageToIDB } from '../utils/imageIDBCache';
 import { useRWATokens } from '../hooks/useRWATokens';
 import { marketplaceService } from '../services/marketplaceService';
 import { apiClient } from '../api/client';
+import { CreateProperty } from './CreateProperty';
 
 // Hook customizado para gerenciar o carregamento do asset
 const useAssetLoader = (id: string | undefined) => {
@@ -41,7 +42,17 @@ const useAssetLoader = (id: string | undefined) => {
   const MAX_RETRIES = 3;
 
   const fetchData = useCallback(async () => {
-    if (!id) return;
+    // Se for criação, não buscar nada!
+    if (!id || id === 'new') {
+      setState({
+        property: null,
+        images: [],
+        isLoading: false,
+        error: null,
+        isInitialLoad: false
+      });
+      return;
+    }
 
     // Cancela requisição anterior se existir
     if (abortController.current) {
@@ -311,10 +322,19 @@ export const AssetDetails = () => {
   const totalTokensNum = typeof property?.totalTokens === 'string' ? parseInt(property.totalTokens, 10) : property?.totalTokens ?? 0;
 
   const availableTokensNum = useMemo(() => {
-    return typeof property?.availableTokens === 'string' 
-      ? parseInt(property.availableTokens, 10) 
-      : property?.availableTokens ?? 0;
-  }, [property?.availableTokens]);
+    // Tokens NFT que não pertencem ao usuário logado
+    const userIdNum = typeof user?.id === 'string' ? parseInt(user.id, 10) : user?.id ?? 0;
+    // IDs dos tokens em processo de venda (listings ativos)
+    const tokensEmVenda = marketplaceListings
+      .filter((listing: any) => listing.status === 'active' && listing.token?.rwa_id === propertyIdNum)
+      .map((listing: any) => listing.token?.id);
+    // Filtra tokens NFT disponíveis para investimento
+    const disponiveis = nftTokens.filter(t =>
+      t.owner_user_id !== userIdNum &&
+      !tokensEmVenda.includes(t.id)
+    );
+    return disponiveis.length;
+  }, [nftTokens, user, marketplaceListings, propertyIdNum]);
 
   const tokenPriceNum = useMemo(() => {
     return typeof property?.metadata?.tokenPrice === 'string' 
@@ -367,6 +387,10 @@ export const AssetDetails = () => {
         <Button mt={4} onClick={() => navigate('/assets')}>Voltar para Imóveis</Button>
       </Box>
     );
+  }
+
+  if (!id || id === 'new') {
+    return <CreateProperty />;
   }
 
   if (!property) {

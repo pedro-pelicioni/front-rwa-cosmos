@@ -51,7 +51,7 @@ import { WalletConnectModal } from '../components/WalletConnectModal';
 export const CreateProperty = () => {
   const navigate = useNavigate();
   const toast = useToast();
-  const { user, isLoading, handleConnect } = useAuth();
+  const { user, isLoading, connect } = useAuth();
   const { create, loading, error } = useProperty();
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [formError, setFormError] = useState<string | null>(null);
@@ -164,11 +164,6 @@ export const CreateProperty = () => {
     setFormError(null);
     setFieldErrors({});
     
-    if (uploadedImages.length === 0) {
-      setFormError('Please upload at least one image.');
-      return;
-    }
-    
     // Basic validation
     const newFieldErrors: {[key: string]: boolean} = {};
     let hasErrors = false;
@@ -213,25 +208,25 @@ export const CreateProperty = () => {
     }
     
     try {
-      // 1. Cria a propriedade normalmente
-      const property = await create({
+      // Extrair city e country do campo location
+      const [city, country] = formData.location.split(',').map(s => s.trim());
+      const payload = {
         name: formData.name,
         description: formData.description,
-        location: formData.location,
-        price: parseFloat(formData.price),
+        gpsCoordinates: formData.gpsCoordinates,
+        city: city || '',
+        country: country || '',
+        currentValue: parseFloat(formData.price),
         totalTokens: parseInt(formData.totalTokens),
-        availableTokens: parseInt(formData.totalTokens),
-        metadata: {
-          images: [], // imagens serão vinculadas depois
-          documents: formData.documents,
-          amenities: formData.amenities,
-          yearBuilt: formData.yearBuilt ? parseInt(formData.yearBuilt) : undefined,
-          squareMeters: formData.squareMeters ? parseFloat(formData.squareMeters) : undefined,
-          gpsCoordinates: formData.gpsCoordinates
-        },
-        owner: user?.address || '',
-        status: 'active'
-      });
+        yearBuilt: formData.yearBuilt ? parseInt(formData.yearBuilt) : undefined,
+        sizeM2: formData.squareMeters ? parseFloat(formData.squareMeters) : undefined,
+        status: 'active' as 'active',
+        userId: user?.id
+      };
+      console.log('[CreateProperty] Payload corrigido para o backend:', payload);
+
+      // 1. Cria a propriedade normalmente
+      const property = await create(payload);
 
       // 2. Faz upload das imagens e vincula à propriedade
       setIsUploading(true);
@@ -251,6 +246,10 @@ export const CreateProperty = () => {
     } catch (err: any) {
       setIsUploading(false);
       console.error('Error creating property:', err);
+      
+      if (err.response) {
+        console.error('[CreateProperty] Erro detalhado do backend:', err.response.data);
+      }
       
       // Captura o erro específico da resposta ou do estado do hook
       let errorMessage = "";
@@ -298,20 +297,6 @@ export const CreateProperty = () => {
       });
     }
   };
-
-  if (!user?.isConnected) {
-    return (
-      <Container maxW="container.md" py={8}>
-        <VStack spacing={8} align="stretch">
-          <Heading>Connect Your Wallet</Heading>
-          <Text>You need to connect your wallet before creating a new property listing.</Text>
-          <Button variant="primary" onClick={onOpen}>
-            Connect Wallet
-          </Button>
-        </VStack>
-      </Container>
-    );
-  }
 
   return (
     <Container maxW="container.md" py={8}>
@@ -466,39 +451,31 @@ export const CreateProperty = () => {
         
         <Heading size="md">Media & Documents</Heading>
         
-        <FormControl isRequired>
-          <FormLabel>Property Images</FormLabel>
-          <VStack align="flex-start" spacing={2} mb={2}>
-            <HStack>
-              <Button
-                as="label"
-                leftIcon={<FaUpload />}
-                variant="outline"
-                isDisabled={uploadedImages.length >= 3}
-              >
-                Upload Image
-                <Input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  hidden
-                  onChange={handleImageChange}
-                  disabled={uploadedImages.length >= 3}
-                />
-              </Button>
-              <Text fontSize="sm" color="gray.400">{uploadedImages.length}/3 images</Text>
-            </HStack>
-            <HStack spacing={2} flexWrap="wrap">
-              {uploadPreviews.map((src, idx) => (
-                <Box key={idx} position="relative">
-                  <img src={src} alt={`preview-${idx}`} style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid #444' }} />
-                  <Button size="xs" colorScheme="red" position="absolute" top={0} right={0} borderRadius="full" onClick={() => removeUploadedImg(idx)}>
-                    <FaTrash />
-                  </Button>
-                </Box>
-              ))}
-            </HStack>
-          </VStack>
+        <FormControl isRequired={false}>
+          <FormLabel>Imagens</FormLabel>
+          <Input
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handleImageChange}
+            display="none"
+            id="image-upload"
+          />
+          <Button
+            as="label"
+            htmlFor="image-upload"
+            colorScheme="blue"
+            variant="outline"
+            width="full"
+            cursor="pointer"
+          >
+            Selecionar Imagens
+          </Button>
+          {uploadedImages.length > 0 && (
+            <Text mt={2} fontSize="sm" color="gray.600">
+              {uploadedImages.length} imagem(ns) selecionada(s)
+            </Text>
+          )}
         </FormControl>
         
         <FormControl>
@@ -595,7 +572,12 @@ export const CreateProperty = () => {
         </HStack>
       </VStack>
       
-      <WalletConnectModal isOpen={isOpen} onClose={onClose} handleConnect={handleConnect} isLoading={isLoading} />
+      <WalletConnectModal
+        isOpen={isOpen}
+        onClose={onClose}
+        isLoading={isLoading}
+        handleConnect={connect}
+      />
     </Container>
   );
 }; 

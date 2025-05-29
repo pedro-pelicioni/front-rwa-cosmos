@@ -15,6 +15,7 @@ import { LatamMap } from '../pages/LatamMap';
 import { MyAccount } from '../pages/MyAccount';
 import { AssetDetails } from '../pages/AssetDetails';
 import { UserDashboard } from '../pages/UserDashboard';
+import { PaymentPage } from '../pages/PaymentPage';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -38,6 +39,7 @@ export const AppRoutes: React.FC = () => {
         <Route path="/assets" element={<Assets />} />
         <Route path="/assets/:id" element={<AssetDetails />} />
         <Route path="/latammap" element={<LatamMap />} />
+        <Route path="/payment/:rwaId/:tokenId/:quantity/:pricePerToken" element={<PaymentPage />} />
         {/*<Route path="/dashboard" element={<Navigate to="/wallet" replace />} />
         <Route path="/my-account" element={<Navigate to="/wallet" replace />} />*/}
       </Routes>
