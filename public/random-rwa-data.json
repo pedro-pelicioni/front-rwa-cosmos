@@ -1,0 +1,112 @@
+[
+  {
+    "name": "Downtown Business Tower",
+    "description": "Class A office building in the heart of the financial district",
+    "city": "São Paulo",
+    "country": "Brazil",
+    "currentValue": 5000000,
+    "totalTokens": 1000,
+    "yearBuilt": 2010,
+    "sizeM2": 2000,
+    "gpsCoordinates": "-23.5505, -46.6333"
+  },
+  {
+    "name": "Luxury Residential Complex",
+    "description": "High-end residential development with premium amenities",
+    "city": "Mexico City",
+    "country": "Mexico",
+    "currentValue": 8000000,
+    "totalTokens": 2000,
+    "yearBuilt": 2015,
+    "sizeM2": 3500,
+    "gpsCoordinates": "19.4326, -99.1332"
+  },
+  {
+    "name": "North Shopping Mall",
+    "description": "Modern shopping complex with retail and entertainment",
+    "city": "Buenos Aires",
+    "country": "Argentina",
+    "currentValue": 15000000,
+    "totalTokens": 3000,
+    "yearBuilt": 2018,
+    "sizeM2": 5000,
+    "gpsCoordinates": "-34.6037, -58.3816"
+  },
+  {
+    "name": "Corporate Tower",
+    "description": "Premium office building with LEED certification",
+    "city": "Santiago",
+    "country": "Chile",
+    "currentValue": 12000000,
+    "totalTokens": 2400,
+    "yearBuilt": 2019,
+    "sizeM2": 4000,
+    "gpsCoordinates": "-33.4489, -70.6693"
+  },
+  {
+    "name": "Luxury Condominium",
+    "description": "Exclusive residential complex with panoramic views",
+    "city": "Bogotá",
+    "country": "Colombia",
+    "currentValue": 10000000,
+    "totalTokens": 2000,
+    "yearBuilt": 2017,
+    "sizeM2": 3000,
+    "gpsCoordinates": "4.7110, -74.0721"
+  },
+  {
+    "name": "Premium Hotel Resort",
+    "description": "5-star beachfront hotel with luxury amenities",
+    "city": "Cancún",
+    "country": "Mexico",
+    "currentValue": 20000000,
+    "totalTokens": 4000,
+    "yearBuilt": 2016,
+    "sizeM2": 6000,
+    "gpsCoordinates": "21.1619, -86.8515"
+  },
+  {
+    "name": "Convention Center",
+    "description": "State-of-the-art event and conference facility",
+    "city": "Lima",
+    "country": "Peru",
+    "currentValue": 18000000,
+    "totalTokens": 3600,
+    "yearBuilt": 2014,
+    "sizeM2": 5500,
+    "gpsCoordinates": "-12.0464, -77.0428"
+  },
+  {
+    "name": "Industrial Park",
+    "description": "Modern industrial complex with multiple facilities",
+    "city": "Montevideo",
+    "country": "Uruguay",
+    "currentValue": 25000000,
+    "totalTokens": 5000,
+    "yearBuilt": 2013,
+    "sizeM2": 8000,
+    "gpsCoordinates": "-34.9011, -56.1645"
+  },
+  {
+    "name": "Cultural Center",
+    "description": "Contemporary art museum and cultural venue",
+    "city": "Panama City",
+    "country": "Panama",
+    "currentValue": 9000000,
+    "totalTokens": 1800,
+    "yearBuilt": 2012,
+    "sizeM2": 2800,
+    "gpsCoordinates": "8.9824, -79.5199"
+  },
+  {
+    "name": "Residential Tower",
+    "description": "Luxury residential skyscraper with smart features",
+    "city": "Quito",
+    "country": "Ecuador",
+    "currentValue": 7000000,
+    "totalTokens": 1400,
+    "yearBuilt": 2011,
+    "sizeM2": 2200,
+    "gpsCoordinates": "-0.1807, -78.4678"
+  }
+] 
