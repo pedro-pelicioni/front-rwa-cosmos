@@ -95,42 +95,26 @@ export const useProperty = () => {
   }, []);
   
   // Property para RWA (para criar e atualizar)
-  const propertyToRwa = useCallback((property: Partial<Property>): Partial<RWA> => {
-    if (!property.location) return {}; 
-    
-    // Extrair cidade e país da localização
-    const locationParts = property.location.split(',').map(part => part.trim());
-    let city = locationParts[0] || '';
-    let country = locationParts.length > 1 ? locationParts[1] : '';
-    
-    // Se não tiver vírgula, usa todo o texto como cidade e país
-    if (locationParts.length === 1 && city) {
-      country = city;
-    }
-    
-    // Garantir que os valores numéricos sejam números
-    const currentValue = typeof property.price === 'string' ? parseFloat(property.price) : property.price || 0;
-    const totalTokens = typeof property.totalTokens === 'string' ? parseInt(property.totalTokens) : property.totalTokens || 0;
-    const yearBuilt = property.metadata?.yearBuilt ? 
-      (typeof property.metadata.yearBuilt === 'string' ? parseInt(property.metadata.yearBuilt) : property.metadata.yearBuilt) : 
-      undefined;
-    const sizeM2 = property.metadata?.squareMeters ? 
-      (typeof property.metadata.squareMeters === 'string' ? parseFloat(property.metadata.squareMeters) : property.metadata.squareMeters) : 
-      undefined;
-    
+  const propertyToRwa = (property: Partial<Property>): Partial<RWA> => {
+    const [city, country] = property.location?.split(',').map(s => s.trim()) || ['', ''];
     return {
-      name: property.name || '',
-      description: property.description || '',
-      city,
-      country,
-      current_value: currentValue,
-      total_tokens: totalTokens,
-      year_built: yearBuilt,
-      size_m2: sizeM2,
-      gps_coordinates: property.metadata?.gpsCoordinates || '',
-      status: property.status || 'active'
+      name: property.name,
+      description: property.description,
+      city: city,
+      country: country,
+      currentValue: property.currentValue || property.price,
+      totalTokens: property.totalTokens,
+      yearBuilt: property.metadata?.yearBuilt,
+      sizeM2: property.metadata?.squareMeters,
+      gpsCoordinates: property.metadata?.gpsCoordinates,
+      status: property.status || 'active',
+      metadata: {
+        images: property.metadata?.images || [],
+        documents: property.metadata?.documents || [],
+        amenities: property.metadata?.amenities || []
+      }
     };
-  }, []);
+  };
   
   // Obter todas as propriedades
   const getAll = useCallback(async (): Promise<Property[]> => {
@@ -168,62 +152,78 @@ export const useProperty = () => {
   }, [getRWAById, rwaToProperty]);
   
   // Criar propriedade
-  const create = useCallback(async (property: Omit<Property, 'id' | 'createdAt' | 'updatedAt'>): Promise<Property> => {
-    setLoading(true);
-    setError(null);
-    
+  const create = useCallback(async (property: Omit<Property, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
-      const rwaData = propertyToRwa(property as Property);
-      const rwa = await createRWA(rwaData as Omit<RWA, 'id' | 'createdAt' | 'updatedAt'>);
+      setLoading(true);
+      setError(null);
       
-      // Criar um objeto Property diretamente a partir da resposta da API, sem buscar dados relacionados
-      // Isso evita erros 404 quando as APIs de imagens e facilities não estão disponíveis
-      const newProperty: Property = {
-        id: rwa.id.toString(),
-        name: rwa.name,
-        description: rwa.description || '',
-        location: `${rwa.city || ''}, ${rwa.country || ''}`,
-        price: typeof rwa.currentValue !== 'undefined' ? rwa.currentValue : 
-               typeof rwa.current_value !== 'undefined' ? 
-                 (typeof rwa.current_value === 'string' ? parseFloat(rwa.current_value) : rwa.current_value) : 0,
-        totalTokens: rwa.totalTokens || rwa.total_tokens || 0,
-        availableTokens: rwa.totalTokens || rwa.total_tokens || 0,
-        metadata: {
-          images: property.metadata?.images || [],
-          documents: property.metadata?.documents || [],
-          amenities: property.metadata?.amenities || [],
-          yearBuilt: rwa.yearBuilt || rwa.year_built,
-          squareMeters: rwa.sizeM2 || rwa.size_m2,
-          gpsCoordinates: rwa.gpsCoordinates || rwa.gps_coordinates || ''
-        },
-        owner: (rwa.userId || rwa.user_id || 0).toString(),
-        createdAt: rwa.createdAt || rwa.created_at || new Date().toISOString(),
-        updatedAt: rwa.updatedAt || rwa.updated_at || new Date().toISOString(),
-        status: rwa.status || 'active'
-      };
+      console.log('[useProperty] Dados recebidos:', property);
+      console.log('[useProperty] Tipo do currentValue:', typeof property.currentValue);
+      console.log('[useProperty] Valor do currentValue:', property.currentValue);
       
-      // Se tiver imagens, criar elas também, mas não bloqueia a resposta para o usuário
-      if (property.metadata?.images?.length) {
-        // Cria as imagens em segundo plano para não bloquear o fluxo
-        Promise.all(property.metadata.images.map((image, i) => 
-          apiClient.post(`/api/rwa/${rwa.id}/images`, {
-            rwa_id: rwa.id,
-            title: `Image ${i+1}`,
-            file_path: image,
-            display_order: i
-          }).catch(err => console.error(`Erro ao criar imagem ${i+1}:`, err))
-        )).catch(err => console.error('Erro ao criar imagens:', err));
+      // Validar campos obrigatórios
+      if (!property.location) {
+        console.log('[useProperty] Erro: Localização ausente');
+        throw new Error('Localização é obrigatória');
+      }
+      if (!property.currentValue && !property.price) {
+        console.log('[useProperty] Erro: Preço ausente');
+        throw new Error('Preço é obrigatório');
+      }
+      if (!property.totalTokens) {
+        console.log('[useProperty] Erro: Total de tokens ausente');
+        throw new Error('Total de tokens é obrigatório');
+      }
+
+      // Garantir que o preço seja um número
+      const price = typeof property.currentValue === 'number' ? property.currentValue :
+                   typeof property.price === 'string' ? parseFloat(property.price) :
+                   typeof property.price === 'number' ? property.price : 0;
+                   
+      console.log('[useProperty] Preço convertido:', price);
+      console.log('[useProperty] Tipo do preço convertido:', typeof price);
+      
+      if (isNaN(price)) {
+        console.log('[useProperty] Erro: Preço não é um número válido');
+        throw new Error('Preço deve ser um número válido');
       }
       
-      return newProperty;
+      // Converter o objeto Property para o formato RWA
+      const rwaData: Omit<RWA, 'id' | 'createdAt' | 'updatedAt'> = {
+        name: property.name,
+        description: property.description || '',
+        city: property.location.split(',')[0].trim(),
+        country: property.location.split(',')[1]?.trim() || '',
+        currentValue: price,
+        totalTokens: property.totalTokens,
+        yearBuilt: property.metadata?.yearBuilt || 0,
+        sizeM2: property.metadata?.squareMeters || 0,
+        gpsCoordinates: property.metadata?.gpsCoordinates || '',
+        status: property.status || 'active',
+        geometry: {},
+        metadata: {
+          images: [],
+          documents: [],
+          amenities: []
+        },
+        userId: 1 // TODO: Pegar do usuário logado
+      };
+
+      console.log('[useProperty] Dados convertidos para RWA:', rwaData);
+      console.log('[useProperty] Tipo do currentValue:', typeof rwaData.currentValue);
+      console.log('[useProperty] Valor do currentValue:', rwaData.currentValue);
+      
+      const rwa = await createRWA(rwaData);
+      console.log('[useProperty] Resposta do backend:', rwa);
+      return rwa;
     } catch (err) {
-      const errorMsg = extractErrorMessage(err);
-      setError(errorMsg);
+      console.error('[useProperty] Erro detalhado:', err);
+      setError(err instanceof Error ? err.message : 'Erro ao criar propriedade');
       throw err;
     } finally {
       setLoading(false);
     }
-  }, [createRWA, propertyToRwa]);
+  }, []);
   
   // Atualizar propriedade
   const update = useCallback(async (id: string, property: Partial<Property>): Promise<Property> => {
