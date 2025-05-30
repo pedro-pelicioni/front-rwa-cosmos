@@ -1,5 +1,4 @@
 import { apiClient } from '../api/client';
-<<<<<<< HEAD
 import { authService } from './auth';
 
 export interface KYCData {
@@ -76,29 +75,6 @@ export const kycService = {
         throw new Error(error.response.data.message);
       }
       throw error;
-=======
-import { authService } from './authService';
-
-export interface KYCData {
-  id: number;
-  userId: number;
-  status: 'pending' | 'approved' | 'rejected';
-  documentType: string;
-  documentNumber: string;
-  documentUrl: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export const kycService = {
-  async getByUserId(userId: number): Promise<KYCData | null> {
-    try {
-      const response = await apiClient.get(`/api/kyc/${userId}`);
-      return response.data;
-    } catch (error) {
-      console.error('[KYCService] Erro ao buscar dados KYC:', error);
-      return null;
->>>>>>> main
     }
   },
 
@@ -140,19 +116,6 @@ export const kycService = {
     }
   },
 
-<<<<<<< HEAD
-=======
-  async getStatus(userId: number): Promise<string> {
-    try {
-      const kycData = await this.getByUserId(userId);
-      return kycData?.status || 'pending';
-    } catch (error) {
-      console.error('[KYCService] Erro ao obter status KYC:', error);
-      return 'pending';
-    }
-  },
-
->>>>>>> main
   async updateKyc(id: number, data: FormData): Promise<KYCData> {
     try {
       const response = await apiClient.put(`/api/users/kyc/${id}`, data, {

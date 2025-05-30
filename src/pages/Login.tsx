@@ -10,11 +10,7 @@ export const Login: React.FC = () => {
   const handleKeplrLogin = async () => {
     try {
       await connect('keplr');
-<<<<<<< HEAD
       navigate('/wallet');
-=======
-      navigate('/dashboard');
->>>>>>> main
     } catch (error) {
       console.error('Erro ao conectar com Keplr:', error);
     }
