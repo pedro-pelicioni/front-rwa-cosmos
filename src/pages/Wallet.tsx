@@ -49,6 +49,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { tokenService } from '../services/tokenService';
 import { marketplaceService } from '../services/marketplaceService';
+import { imageService } from '../services/imageService';
 
 interface KYCData {
   id?: number;
@@ -107,6 +108,10 @@ export const Wallet = () => {
     selfie_2: null as File | null,
   });
   const [docPreviews, setDocPreviews] = useState<{[key: string]: string}>({});
+  const [propertyImagesCount, setPropertyImagesCount] = useState<{[propertyId: number]: number}>({});
+  const [uploadModal, setUploadModal] = useState<{ open: boolean; propertyId: number | null }>({ open: false, propertyId: null });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -157,6 +162,23 @@ export const Wallet = () => {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Buscar quantidade de imagens para cada property
+  useEffect(() => {
+    async function fetchImagesCount() {
+      const counts: {[propertyId: number]: number} = {};
+      for (const property of properties) {
+        try {
+          const imgs = await imageService.getByRWAId(property.id);
+          counts[property.id] = imgs.length;
+        } catch {
+          counts[property.id] = 0;
+        }
+      }
+      setPropertyImagesCount(counts);
+    }
+    if (properties.length > 0) fetchImagesCount();
+  }, [properties]);
 
   const handleKYCSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -236,6 +258,36 @@ export const Wallet = () => {
       toast({ title: 'Erro ao enviar documentos', status: 'error' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Função para upload de imagem
+  const handleImageUpload = async () => {
+    if (!selectedFile || !uploadModal.propertyId) return;
+    if (selectedFile.size > 1024 * 1024) {
+      toast({ title: 'Image too large. Please select a file up to 1MB.', status: 'error' });
+      return;
+    }
+    setUploading(true);
+    try {
+      await imageService.upload(
+        uploadModal.propertyId,
+        selectedFile,
+        `Image for property ${uploadModal.propertyId}`,
+        ''
+      );
+      toast({ title: 'Image uploaded successfully!', status: 'success' });
+      // Atualiza a contagem de imagens
+      setPropertyImagesCount(prev => ({
+        ...prev,
+        [uploadModal.propertyId!]: (prev[uploadModal.propertyId!] || 0) + 1
+      }));
+      setUploadModal({ open: false, propertyId: null });
+      setSelectedFile(null);
+    } catch (err) {
+      toast({ title: 'Error uploading image', status: 'error' });
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -384,6 +436,8 @@ export const Wallet = () => {
                       <Th>Location</Th>
                       <Th>Value</Th>
                       <Th>Status</Th>
+                      <Th>Images</Th>
+                      <Th>Upload</Th>
                     </Tr>
                   </Thead>
                   <Tbody>
@@ -403,6 +457,12 @@ export const Wallet = () => {
                             >
                               {property.status}
                             </Badge>
+                          </Td>
+                          <Td>{propertyImagesCount[property.id] ?? <Spinner size="xs" />}</Td>
+                          <Td>
+                            <Button size="xs" onClick={() => setUploadModal({ open: true, propertyId: property.id })}>
+                              Upload Image
+                            </Button>
                           </Td>
                         </Tr>
                       ))}
@@ -528,6 +588,28 @@ export const Wallet = () => {
               </Button>
             </ModalFooter>
           </form>
+        </ModalContent>
+      </Modal>
+
+      <Modal isOpen={uploadModal.open} onClose={() => { setUploadModal({ open: false, propertyId: null }); setSelectedFile(null); }}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Upload Image</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <FormControl>
+              <FormLabel>Select image (max 1MB)</FormLabel>
+              <Input type="file" accept="image/*" onChange={e => setSelectedFile(e.target.files?.[0] || null)} />
+            </FormControl>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={() => { setUploadModal({ open: false, propertyId: null }); setSelectedFile(null); }}>
+              Cancel
+            </Button>
+            <Button colorScheme="blue" onClick={handleImageUpload} isLoading={uploading} isDisabled={!selectedFile}>
+              Upload
+            </Button>
+          </ModalFooter>
         </ModalContent>
       </Modal>
     </Container>

@@ -10,7 +10,6 @@ const PUBLIC_ROUTES = [
   '/api/auth/nonce',
   '/api/auth/wallet-login',
   '/api/auth/register',
-  '/api/rwa/images',
   '/api/rwa/nfts',
   '/api/rwa/tokens',
   '/marketplace/listings',
