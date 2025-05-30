@@ -98,43 +98,17 @@ export const useProperty = () => {
   const propertyToRwa = (property: Partial<Property>): Partial<RWA> => {
     console.log('[useProperty] Convertendo property para RWA:', property);
     
-    // Extrair coordenadas do location se não forem fornecidas
-    let gpsCoordinates = property.gpsCoordinates || '';
-    const location = property.location || '';
-    
-    // Se não houver coordenadas explícitas, tentar extrair do location
-    if (!gpsCoordinates && location) {
-      // Exemplo: "Lima, Peru" -> "-77.0428,-12.0464"
-      const coordinatesMap: { [key: string]: string } = {
-        'Lima, Peru': '-77.0428,-12.0464',
-        'Mexico City, Mexico': '-99.1332,19.4326',
-        'Buenos Aires, Argentina': '-58.3816,-34.6037',
-        'Santiago, Chile': '-70.6483,-33.4489',
-        'Bogotá, Colombia': '-74.0721,4.7110',
-        'São Paulo, Brazil': '-46.6333,-23.5505',
-        'Rio de Janeiro, Brazil': '-43.1729,-22.9068',
-        'Montevideo, Uruguay': '-56.1645,-34.9011',
-        'Panama City, Panama': '-79.5342,8.9824',
-        'Quito, Ecuador': '-78.4678,-0.1807'
-      };
-      
-      gpsCoordinates = coordinatesMap[location] || '';
-      console.log('[useProperty] Coordenadas extraídas do location:', gpsCoordinates);
-    }
-    
-    console.log('[useProperty] Coordenadas e localização:', { gpsCoordinates, location });
-
     return {
       name: property.name,
       description: property.description,
-      location: location,
+      location: property.location,
       city: property.city,
       country: property.country,
       currentValue: property.currentValue || property.price,
       totalTokens: property.totalTokens,
       yearBuilt: property.yearBuilt || 0,
       sizeM2: property.sizeM2 || 0,
-      gpsCoordinates: gpsCoordinates,
+      gpsCoordinates: property.gpsCoordinates || '',
       status: property.status || 'active',
       geometry: property.geometry || {},
       metadata: {
