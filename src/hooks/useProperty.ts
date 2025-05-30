@@ -58,8 +58,8 @@ export const useProperty = () => {
     // Lidar com camel case e snake case nos campos da API
     const id = rwa.id || rwa.id;
     const userId = rwa.userId || rwa.user_id;
-    const createdAt = rwa.createdAt || rwa.created_at;
-    const updatedAt = rwa.updatedAt || rwa.updated_at;
+    const createdAt = rwa.created_at;
+    const updatedAt = rwa.updated_at;
     const currentValue = typeof rwa.currentValue !== 'undefined' ? rwa.currentValue : 
                          typeof rwa.current_value !== 'undefined' ? 
                            (typeof rwa.current_value === 'string' ? parseFloat(rwa.current_value) : rwa.current_value) : 0;
@@ -90,7 +90,7 @@ export const useProperty = () => {
       owner: userId ? userId.toString() : '0',
       createdAt: createdAt || new Date().toISOString(),
       updatedAt: updatedAt || new Date().toISOString(),
-      status: rwa.status || 'active'
+      status: (rwa.status || 'active') as 'active' | 'inactive' | 'sold' | 'pending'
     };
   }, []);
   
@@ -98,19 +98,22 @@ export const useProperty = () => {
   const propertyToRwa = (property: Partial<Property>): Partial<RWA> => {
     console.log('[useProperty] Convertendo property para RWA:', property);
     
+    // Extrair cidade e país da localização
+    const [city = '', country = ''] = (property.location || '').split(',').map(s => s.trim());
+    
     return {
-      name: property.name,
-      description: property.description,
-      location: property.location,
-      city: property.city,
-      country: property.country,
-      currentValue: property.currentValue || property.price,
-      totalTokens: property.totalTokens,
-      yearBuilt: property.yearBuilt || 0,
-      sizeM2: property.sizeM2 || 0,
-      gpsCoordinates: property.gpsCoordinates || '',
-      status: property.status || 'active',
-      geometry: property.geometry || {},
+      name: property.name || '',
+      description: property.description || '',
+      location: property.location || '',
+      city,
+      country,
+      currentValue: property.currentValue || property.price || 0,
+      totalTokens: property.totalTokens || 0,
+      yearBuilt: property.yearBuilt || property.metadata?.yearBuilt || 0,
+      sizeM2: property.sizeM2 || property.metadata?.squareMeters || 0,
+      gpsCoordinates: property.metadata?.gpsCoordinates || '',
+      status: (property.status || 'active') as 'active' | 'inactive' | 'sold' | 'pending',
+      geometry: {},
       metadata: {
         images: property.metadata?.images || [],
         documents: property.metadata?.documents || [],
@@ -159,55 +162,28 @@ export const useProperty = () => {
     try {
       setLoading(true);
       setError(null);
-      
-      console.log('[useProperty] Dados recebidos:', property);
-      console.log('[useProperty] Tipo do currentValue:', typeof property.currentValue);
-      console.log('[useProperty] Valor do currentValue:', property.currentValue);
-      
-      // Validar campos obrigatórios
-      if (!property.location) {
-        console.log('[useProperty] Erro: Localização ausente');
-        throw new Error('Localização é obrigatória');
-      }
-      if (!property.currentValue && !property.price) {
-        console.log('[useProperty] Erro: Preço ausente');
-        throw new Error('Preço é obrigatório');
-      }
-      if (!property.totalTokens) {
-        console.log('[useProperty] Erro: Total de tokens ausente');
-        throw new Error('Total de tokens é obrigatório');
-      }
 
-      // Garantir que o preço seja um número
-      const price = typeof property.currentValue === 'number' ? property.currentValue :
-                   typeof property.price === 'string' ? parseFloat(property.price) :
-                   typeof property.price === 'number' ? property.price : 0;
-                   
-      console.log('[useProperty] Preço convertido:', price);
-      console.log('[useProperty] Tipo do preço convertido:', typeof price);
-      
-      if (isNaN(price)) {
-        console.log('[useProperty] Erro: Preço não é um número válido');
-        throw new Error('Preço deve ser um número válido');
-      }
-      
+      // Extrair cidade e país da localização
+      const [city = '', country = ''] = (property.location || '').split(',').map(s => s.trim());
+
       // Converter o objeto Property para o formato RWA
-      const rwaData: Omit<RWA, 'id' | 'createdAt' | 'updatedAt'> = {
+      const rwaData: Omit<RWA, 'id' | 'created_at' | 'updated_at'> = {
         name: property.name,
         description: property.description || '',
-        city: property.location.split(',')[0].trim(),
-        country: property.location.split(',')[1]?.trim() || '',
-        currentValue: price,
-        totalTokens: property.totalTokens,
-        yearBuilt: property.metadata?.yearBuilt || 0,
-        sizeM2: property.metadata?.squareMeters || 0,
+        location: property.location || '',
+        city,
+        country,
+        currentValue: property.currentValue || property.price || 0,
+        totalTokens: property.totalTokens || 0,
+        yearBuilt: property.yearBuilt || property.metadata?.yearBuilt || 0,
+        sizeM2: property.sizeM2 || property.metadata?.squareMeters || 0,
         gpsCoordinates: property.metadata?.gpsCoordinates || '',
-        status: property.status || 'active',
+        status: (property.status || 'active') as 'active' | 'inactive' | 'sold' | 'pending',
         geometry: {},
         metadata: {
-          images: [],
-          documents: [],
-          amenities: []
+          images: property.metadata?.images || [],
+          documents: property.metadata?.documents || [],
+          amenities: property.metadata?.amenities || []
         },
         userId: 1 // TODO: Pegar do usuário logado
       };
@@ -240,7 +216,7 @@ export const useProperty = () => {
       // Criar um objeto Property diretamente a partir da resposta da API
       // Reutiliza as imagens e amenidades do objeto property original para evitar erros 404
       const updatedProperty: Property = {
-        id: rwa.id.toString(),
+        id: rwa.id?.toString() || '0',
         name: rwa.name,
         description: rwa.description || '',
         location: `${rwa.city || ''}, ${rwa.country || ''}`,
@@ -258,9 +234,9 @@ export const useProperty = () => {
           gpsCoordinates: rwa.gpsCoordinates || rwa.gps_coordinates || ''
         },
         owner: (rwa.userId || rwa.user_id || 0).toString(),
-        createdAt: rwa.createdAt || rwa.created_at || new Date().toISOString(),
-        updatedAt: rwa.updatedAt || rwa.updated_at || new Date().toISOString(),
-        status: rwa.status || 'active'
+        createdAt: rwa.created_at || new Date().toISOString(),
+        updatedAt: rwa.updated_at || new Date().toISOString(),
+        status: (rwa.status || 'active') as 'active' | 'inactive' | 'sold' | 'pending'
       };
       
       return updatedProperty;

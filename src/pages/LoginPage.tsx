@@ -5,13 +5,13 @@ import { useAuth } from '../hooks';
 
 const LoginPage = () => {
   const navigate = useNavigate();
-  const { connect } = useKeplr();
+  const { connectKeplr } = useKeplr();
   const { user } = useAuth();
   const bg = useColorModeValue('white', 'gray.800');
 
   const handleLogin = async () => {
     try {
-      await connect();
+      await connectKeplr();
       navigate('/');
     } catch (err) {
       // pode exibir um toast de erro se quiser

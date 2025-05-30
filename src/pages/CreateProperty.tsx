@@ -39,7 +39,7 @@ import {
   CloseButton,
   ButtonGroup
 } from '@chakra-ui/react';
-import { FaDollarSign, FaPlus, FaTrash, FaUpload, FaImage } from 'react-icons/fa';
+import { FaDollarSign, FaPlus, FaTrash, FaUpload, FaImage, FaRandom } from 'react-icons/fa';
 import { useAuth } from '../hooks';
 import { useProperty } from '../hooks/useProperty';
 import { imageService } from '../services/imageService';
@@ -62,7 +62,8 @@ export const CreateProperty = () => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    location: '',
+    city: '',
+    country: '',
     price: '',
     totalTokens: '',
     images: [] as string[],
@@ -159,8 +160,64 @@ export const CreateProperty = () => {
     setUploadPreviews(prev => prev.filter((_, i) => i !== idx));
   };
   
+  const handleRandomFill = () => {
+    console.log('[CreateProperty] Iniciando preenchimento aleatório');
+    const timestamp = new Date().getTime();
+    const randomIndex = timestamp % 10;
+    console.log('[CreateProperty] Índice aleatório gerado:', randomIndex);
+    
+    fetch('/random-rwa-data.json')
+      .then(response => {
+        console.log('[CreateProperty] Resposta do fetch:', response.status);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        console.log('[CreateProperty] Dados carregados do JSON:', data);
+        if (!Array.isArray(data) || data.length === 0) {
+          throw new Error('Dados inválidos no arquivo JSON');
+        }
+        const randomRWA = data[randomIndex];
+        console.log('[CreateProperty] RWA aleatório selecionado:', randomRWA);
+        
+        if (!randomRWA) {
+          throw new Error('Índice aleatório inválido');
+        }
+        setFormData({
+          ...formData,
+          name: randomRWA.name || '',
+          description: randomRWA.description || '',
+          city: randomRWA.city || '',
+          country: randomRWA.country || '',
+          price: randomRWA.currentValue?.toString() || '',
+          totalTokens: randomRWA.totalTokens?.toString() || '',
+          yearBuilt: randomRWA.yearBuilt?.toString() || '',
+          squareMeters: randomRWA.sizeM2?.toString() || '',
+          gpsCoordinates: randomRWA.gpsCoordinates || '',
+        });
+        console.log('[CreateProperty] Formulário atualizado com dados aleatórios');
+      })
+      .catch(error => {
+        console.error('[CreateProperty] Erro ao carregar dados aleatórios:', error);
+        toast({
+          title: "Erro",
+          description: "Não foi possível carregar dados aleatórios. Verifique se o arquivo random-rwa-data.json está na pasta public.",
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+        });
+      });
+  };
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('[CreateProperty] Iniciando submissão do formulário');
+    console.log('[CreateProperty] Dados do formulário:', formData);
+    console.log('[CreateProperty] Tipo do price:', typeof formData.price);
+    console.log('[CreateProperty] Valor do price:', formData.price);
+    
     setFormError(null);
     setFieldErrors({});
     
@@ -173,11 +230,15 @@ export const CreateProperty = () => {
       hasErrors = true;
     }
     
-    // Validar formato da localização
-    if (!formData.location) {
-      newFieldErrors.location = true;
+    if (!formData.city) {
+      newFieldErrors.city = true;
       hasErrors = true;
-    } 
+    }
+    
+    if (!formData.country) {
+      newFieldErrors.country = true;
+      hasErrors = true;
+    }
     
     if (!formData.gpsCoordinates) {
       newFieldErrors.gpsCoordinates = true;
@@ -187,6 +248,7 @@ export const CreateProperty = () => {
     if (!formData.price) {
       newFieldErrors.price = true;
       hasErrors = true;
+      console.log('[CreateProperty] Erro: Preço ausente');
     }
     
     if (!formData.totalTokens) {
@@ -195,11 +257,12 @@ export const CreateProperty = () => {
     }
     
     if (hasErrors) {
+      console.log('[CreateProperty] Erros de validação encontrados:', newFieldErrors);
       setFieldErrors(newFieldErrors);
       setFormError("Preencha todos os campos obrigatórios");
       toast({
         title: "Campos incompletos",
-        description: "Preencha todos os campos obrigatórios (Nome, Localização, Coordenadas GPS, Valor e Total de Tokens)",
+        description: "Preencha todos os campos obrigatórios",
         status: "error",
         duration: 3000,
         isClosable: true
@@ -208,50 +271,75 @@ export const CreateProperty = () => {
     }
     
     try {
-      // Extrair city e country do campo location
-      const [city, country] = formData.location.split(',').map(s => s.trim());
       const payload = {
         name: formData.name,
-        description: formData.description,
-        gpsCoordinates: formData.gpsCoordinates,
-        city: city || '',
-        country: country || '',
+        description: formData.description || '',
+        location: `${formData.city}, ${formData.country}`,
+        city: formData.city,
+        country: formData.country,
         currentValue: parseFloat(formData.price),
         totalTokens: parseInt(formData.totalTokens),
-        yearBuilt: formData.yearBuilt ? parseInt(formData.yearBuilt) : undefined,
-        sizeM2: formData.squareMeters ? parseFloat(formData.squareMeters) : undefined,
+        yearBuilt: formData.yearBuilt ? parseInt(formData.yearBuilt) : 0,
+        sizeM2: formData.squareMeters ? parseFloat(formData.squareMeters) : 0,
+        gpsCoordinates: formData.gpsCoordinates,
         status: 'active' as 'active',
-        userId: user?.id
+        geometry: {},
+        metadata: {
+          images: [],
+          documents: [],
+          amenities: []
+        }
       };
-      console.log('[CreateProperty] Payload corrigido para o backend:', payload);
+      
+      // Validação adicional para campos obrigatórios
+      if (!formData.city || !formData.country) {
+        console.log('[CreateProperty] Erro: Cidade ou país ausentes');
+        throw new Error('Cidade e país são obrigatórios');
+      }
+      
+      if (!formData.price || isNaN(parseFloat(formData.price))) {
+        console.log('[CreateProperty] Erro: Preço inválido');
+        throw new Error('Valor da propriedade é obrigatório e deve ser um número válido');
+      }
+      
+      console.log('[CreateProperty] Payload antes do envio:', JSON.stringify(payload, null, 2));
+      console.log('[CreateProperty] Tipos dos campos:', {
+        name: typeof payload.name,
+        description: typeof payload.description,
+        location: typeof payload.location,
+        city: typeof payload.city,
+        country: typeof payload.country,
+        currentValue: typeof payload.currentValue,
+        totalTokens: typeof payload.totalTokens,
+        yearBuilt: typeof payload.yearBuilt,
+        sizeM2: typeof payload.sizeM2,
+        gpsCoordinates: typeof payload.gpsCoordinates,
+        status: typeof payload.status,
+        geometry: typeof payload.geometry,
+        metadata: typeof payload.metadata
+      });
 
-      // 1. Cria a propriedade normalmente
       const property = await create(payload);
-
-      // 2. Faz upload das imagens e vincula à propriedade
-      setIsUploading(true);
-      await Promise.all(uploadedImages.map(async (file) => {
-        await imageService.upload(Number(property.id), file, file.name);
-      }));
-      setIsUploading(false);
+      console.log('[CreateProperty] Resposta do backend:', property);
 
       toast({
         title: "Propriedade Criada",
-        description: `Propriedade "${formData.name}" foi criada com sucesso` + (uploadedImages.length ? ' com imagens.' : '.'),
+        description: `Propriedade "${formData.name}" foi criada com sucesso`,
         status: "success",
         duration: 5000,
         isClosable: true
       });
       navigate('/assets');
     } catch (err: any) {
-      setIsUploading(false);
-      console.error('Error creating property:', err);
+      console.error('[CreateProperty] Erro ao criar propriedade:', err);
+      console.error('[CreateProperty] Stack trace:', err.stack);
       
       if (err.response) {
         console.error('[CreateProperty] Erro detalhado do backend:', err.response.data);
+        console.error('[CreateProperty] Status do erro:', err.response.status);
+        console.error('[CreateProperty] Headers da resposta:', err.response.headers);
       }
       
-      // Captura o erro específico da resposta ou do estado do hook
       let errorMessage = "";
       
       if (err.response?.data?.message) {
@@ -259,7 +347,6 @@ export const CreateProperty = () => {
       } else if (err.response?.data?.error) {
         errorMessage = err.response.data.error;
       } else if (err.response?.data?.errors) {
-        // Processa erros em formato array ou objeto
         if (Array.isArray(err.response.data.errors)) {
           errorMessage = err.response.data.errors.join('; ');
         } else if (typeof err.response.data.errors === 'object') {
@@ -268,23 +355,22 @@ export const CreateProperty = () => {
           errorMessage = String(err.response.data.errors);
         }
       } else if (error) {
-        // Se não encontrar erro específico na resposta, usa o erro do hook
         errorMessage = error;
       } else {
         errorMessage = "Ocorreu um erro ao criar a propriedade";
       }
       
-      // Destaca campos específicos baseado na mensagem de erro
       const newFieldErrors: {[key: string]: boolean} = {};
       const errorLower = errorMessage.toLowerCase();
       
       if (errorLower.includes('nome') || errorLower.includes('name')) newFieldErrors.name = true;
+      if (errorLower.includes('cidade') || errorLower.includes('city')) newFieldErrors.city = true;
+      if (errorLower.includes('país') || errorLower.includes('country')) newFieldErrors.country = true;
       if (errorLower.includes('coordenadas') || errorLower.includes('gps')) newFieldErrors.gpsCoordinates = true;
-      if (errorLower.includes('localização') || errorLower.includes('location') || 
-          errorLower.includes('cidade') || errorLower.includes('país') || 
-          errorLower.includes('city') || errorLower.includes('country')) newFieldErrors.location = true;
       if (errorLower.includes('preço') || errorLower.includes('valor') || errorLower.includes('price')) newFieldErrors.price = true;
       if (errorLower.includes('tokens')) newFieldErrors.totalTokens = true;
+      
+      console.log('[CreateProperty] Campos com erro:', newFieldErrors);
       
       setFieldErrors(newFieldErrors);
       setFormError(errorMessage);
@@ -316,7 +402,17 @@ export const CreateProperty = () => {
         
         <Divider borderColor="bgGrid" />
         
-        <Heading size="md">Basic Information</Heading>
+        <HStack justifyContent="space-between" alignItems="center">
+          <Heading size="md">Basic Information</Heading>
+          <Button
+            leftIcon={<FaRandom />}
+            onClick={handleRandomFill}
+            variant="outline"
+            colorScheme="blue"
+          >
+            Preencher Aleatoriamente
+          </Button>
+        </HStack>
         
         <FormControl isRequired isInvalid={!!fieldErrors.name}>
           <FormLabel>Property Name</FormLabel>
@@ -330,23 +426,35 @@ export const CreateProperty = () => {
           />
         </FormControl>
         
-        <FormControl isRequired isInvalid={!!fieldErrors.location}>
-          <FormLabel>Location</FormLabel>
-          <Input 
-            name="location"
-            value={formData.location}
-            onChange={handleInputChange}
-            placeholder="City, Country"
-            bg="rgba(255,255,255,0.05)"
-            border="1px solid"
-            borderColor={fieldErrors.location ? "red.500" : "bgGrid"}
-          />
-          <FormHelperText color={fieldErrors.location ? "red.300" : "text.dim"}>
-            Formato obrigatório: Cidade, País (ex: São Paulo, Brasil)
-          </FormHelperText>
-        </FormControl>
+        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+          <FormControl isRequired isInvalid={!!fieldErrors.city}>
+            <FormLabel>Cidade</FormLabel>
+            <Input 
+              name="city"
+              value={formData.city}
+              onChange={handleInputChange}
+              placeholder="Ex: São Paulo"
+              bg="rgba(255,255,255,0.05)"
+              border="1px solid"
+              borderColor={fieldErrors.city ? "red.500" : "bgGrid"}
+            />
+          </FormControl>
+          
+          <FormControl isRequired isInvalid={!!fieldErrors.country}>
+            <FormLabel>País</FormLabel>
+            <Input 
+              name="country"
+              value={formData.country}
+              onChange={handleInputChange}
+              placeholder="Ex: Brasil"
+              bg="rgba(255,255,255,0.05)"
+              border="1px solid"
+              borderColor={fieldErrors.country ? "red.500" : "bgGrid"}
+            />
+          </FormControl>
+        </SimpleGrid>
         
-        <FormControl isInvalid={!!fieldErrors.gpsCoordinates}>
+        <FormControl isRequired isInvalid={!!fieldErrors.gpsCoordinates}>
           <FormLabel>GPS Coordinates</FormLabel>
           <Input 
             name="gpsCoordinates"
@@ -447,111 +555,6 @@ export const CreateProperty = () => {
           </FormControl>
         </SimpleGrid>
         
-        <Divider borderColor="bgGrid" />
-        
-        <Heading size="md">Media & Documents</Heading>
-        
-        <FormControl isRequired={false}>
-          <FormLabel>Imagens</FormLabel>
-          <Input
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={handleImageChange}
-            display="none"
-            id="image-upload"
-          />
-          <Button
-            as="label"
-            htmlFor="image-upload"
-            colorScheme="blue"
-            variant="outline"
-            width="full"
-            cursor="pointer"
-          >
-            Selecionar Imagens
-          </Button>
-          {uploadedImages.length > 0 && (
-            <Text mt={2} fontSize="sm" color="gray.600">
-              {uploadedImages.length} imagem(ns) selecionada(s)
-            </Text>
-          )}
-        </FormControl>
-        
-        <FormControl>
-          <FormLabel>Property Documents</FormLabel>
-          <HStack mb={2}>
-            <Input 
-              value={newDocument}
-              onChange={(e) => setNewDocument(e.target.value)}
-              placeholder="Enter document name (e.g., property_deed.pdf)"
-              bg="rgba(255,255,255,0.05)"
-              border="1px solid"
-              borderColor="bgGrid"
-            />
-            <Button 
-              leftIcon={<FaPlus />} 
-              onClick={addDocument}
-              variant="outline"
-              px={8}
-            >
-              Add
-            </Button>
-          </HStack>
-          <HStack spacing={2} flexWrap="wrap">
-            {formData.documents.map((doc, index) => (
-              <Tag 
-                key={index}
-                size="lg" 
-                borderRadius="full"
-                variant="outline"
-                bg="rgba(255,255,255,0.05)"
-                my={1}
-              >
-                <TagLabel>{doc}</TagLabel>
-                <TagCloseButton onClick={() => removeDocument(index)} />
-              </Tag>
-            ))}
-          </HStack>
-        </FormControl>
-        
-        <FormControl>
-          <FormLabel>Amenities</FormLabel>
-          <HStack mb={2}>
-            <Input 
-              value={newAmenity}
-              onChange={(e) => setNewAmenity(e.target.value)}
-              placeholder="Enter amenity (e.g., Swimming Pool)"
-              bg="rgba(255,255,255,0.05)"
-              border="1px solid"
-              borderColor="bgGrid"
-            />
-            <Button 
-              leftIcon={<FaPlus />} 
-              onClick={addAmenity}
-              variant="outline"
-              px={8}
-            >
-              Add
-            </Button>
-          </HStack>
-          <HStack spacing={2} flexWrap="wrap">
-            {formData.amenities.map((amenity, index) => (
-              <Tag 
-                key={index}
-                size="lg" 
-                borderRadius="full"
-                variant="outline"
-                bg="rgba(255,255,255,0.05)"
-                my={1}
-              >
-                <TagLabel>{amenity}</TagLabel>
-                <TagCloseButton onClick={() => removeAmenity(index)} />
-              </Tag>
-            ))}
-          </HStack>
-        </FormControl>
-        
         <Divider borderColor="bgGrid" my={4} />
         
         <HStack justifyContent="space-between">
@@ -564,7 +567,7 @@ export const CreateProperty = () => {
           <Button 
             type="submit"
             variant="primary"
-            isLoading={loading || isUploading}
+            isLoading={loading}
             loadingText="Creating..."
           >
             Create Property

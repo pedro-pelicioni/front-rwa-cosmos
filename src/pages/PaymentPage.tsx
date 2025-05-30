@@ -45,8 +45,8 @@ export const PaymentPage = () => {
   // Redireciona imediatamente se não estiver logado
   if (!user) {
     toast({
-      title: 'Login necessário',
-      description: 'Faça login para continuar com a compra.',
+      title: 'Login Required',
+      description: 'Please login to continue with the purchase.',
       status: 'warning',
       duration: 4000,
       isClosable: true,
@@ -78,9 +78,9 @@ export const PaymentPage = () => {
       <Container centerContent py={10}>
         <Alert status="error">
           <AlertIcon />
-          <AlertTitle>Parâmetros inválidos</AlertTitle>
+          <AlertTitle>Invalid Parameters</AlertTitle>
           <AlertDescription>
-            Um ou mais parâmetros são inválidos. Por favor, volte e tente novamente.
+            One or more parameters are invalid. Please go back and try again.
           </AlertDescription>
         </Alert>
       </Container>
@@ -129,7 +129,7 @@ export const PaymentPage = () => {
             if (tokenObj) {
               // Se o usuário for o owner, não pode comprar
               if (tokenObj.owner_user_id === user.id) {
-                setError(`Você é o proprietário do token ${tokenIdNum} e não pode comprá-lo.`);
+                setError(`You are the owner of token ${tokenIdNum} and cannot purchase it.`);
                 return;
               }
               // Criar um listing temporário para permitir a venda
@@ -152,23 +152,23 @@ export const PaymentPage = () => {
               setSaleInfo(tempListing);
               // prosseguir normalmente
             } else {
-              setError(`Token ${tokenIdNum} não encontrado. Tokens disponíveis: ${listings.data.map((l: any) => l.token.id).join(', ')}`);
+              setError(`Token ${tokenIdNum} not found. Available tokens: ${listings.data.map((l: any) => l.token.id).join(', ')}`);
               return;
             }
           } catch (err: any) {
             console.error('[PaymentPage] Erro ao verificar token:', err);
-            setError(`Token ${tokenIdNum} não encontrado ou não está disponível para venda. Erro: ${err.message}`);
+            setError(`Token ${tokenIdNum} not found or is not available for purchase. Error: ${err.message}`);
             return;
           }
         } else {
           // Verificar se o token está disponível para venda
           if (listing.status !== 'available' && listing.status !== 'pending') {
-            setError(`Token ${tokenIdNum} não está disponível para venda no momento. Status atual: ${listing.status}`);
+            setError(`Token ${tokenIdNum} is not available for purchase at the moment. Current status: ${listing.status}`);
             return;
           }
           // Se o usuário for o owner, não pode comprar
           if (listing.token?.owner_user_id === user.id) {
-            setError(`Você é o proprietário do token ${tokenIdNum} e não pode comprá-lo.`);
+            setError(`You are the owner of token ${tokenIdNum} and cannot purchase it.`);
             return;
           }
           setTokenInfo(listing.token);
@@ -192,23 +192,20 @@ export const PaymentPage = () => {
         } catch (e) {
           // fallback para asset.images ou asset.metadata.images
           const metaImages = Array.isArray(asset?.metadata?.images) ? asset.metadata?.images : [];
-          const assetImages = Array.isArray(asset?.images) ? asset.images : [];
           // LOG: fallback imagens
-          console.log('[PaymentPage] Fallback imagens:', { metaImages, assetImages });
-          if ((metaImages || []).length > 0) {
-            setMainImage((metaImages || [])[0]);
-          } else if (assetImages.length > 0) {
-            setMainImage(assetImages[0]);
+          console.log('[PaymentPage] Fallback imagens:', { metaImages });
+          if (metaImages.length > 0) {
+            setMainImage(metaImages[0]);
           } else {
             setMainImage('https://placehold.co/280x160?text=No+Image');
           }
         }
       } catch (err) {
         console.error('[PaymentPage] Erro ao carregar dados:', err);
-        setError('Erro ao carregar informações do pagamento');
+        setError('Error loading payment information');
         toast({
-          title: 'Erro',
-          description: 'Falha ao carregar informações do pagamento',
+          title: 'Error',
+          description: 'Failed to load payment information',
           status: 'error',
           duration: 5000,
           isClosable: true,
@@ -232,22 +229,22 @@ export const PaymentPage = () => {
       
       if (response.data) {
         toast({
-          title: 'Sucesso',
-          description: 'Token transferido com sucesso',
+          title: 'Success',
+          description: 'Token transferred successfully',
           status: 'success',
           duration: 5000,
           isClosable: true,
         });
         navigate('/wallet');
       } else {
-        throw new Error('Falha ao transferir token');
+        throw new Error('Failed to transfer token');
       }
     } catch (err) {
       console.error('Erro na transferência:', err);
-      setError('Erro ao processar transferência');
+      setError('Error processing transfer');
       toast({
-        title: 'Erro',
-        description: 'Falha ao processar transferência do token',
+        title: 'Error',
+        description: 'Failed to process token transfer',
         status: 'error',
         duration: 5000,
         isClosable: true,
@@ -288,7 +285,7 @@ export const PaymentPage = () => {
           <Box flex={1} bg="white" borderRadius="2xl" boxShadow="2xl" p={0} display="flex" alignItems="center" justifyContent="center" minW="320px" maxW="420px" minH="260px">
             <Image
               src={mainImage}
-              alt={assetInfo?.name || 'Imóvel'}
+              alt={assetInfo?.name || 'Property'}
               w="100%"
               h="260px"
               objectFit="cover"
@@ -307,8 +304,8 @@ export const PaymentPage = () => {
               <CardBody>
                 <VStack align="stretch" spacing={4}>
                   <Text><b>Token ID:</b> {tokenInfo?.token_identifier || tokenInfo?.id}</Text>
-                  <Text><b>Quantidade:</b> {quantityNum}</Text>
-                  <Text><b>Preço por token:</b> ${pricePerTokenNum}</Text>
+                  <Text><b>Quantity:</b> {quantityNum}</Text>
+                  <Text><b>Price per token:</b> ${pricePerTokenNum}</Text>
                   <Divider />
                   <Text fontSize="xl"><b>Total:</b> ${totalAmount}</Text>
                 </VStack>
@@ -320,9 +317,9 @@ export const PaymentPage = () => {
                   w="100%"
                   onClick={handlePayment}
                   isLoading={processing}
-                  loadingText="Processando..."
+                  loadingText="Processing..."
                 >
-                  Confirmar Compra
+                  Confirm Purchase
                 </Button>
               </CardFooter>
             </Card>

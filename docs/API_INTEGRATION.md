@@ -18,7 +18,7 @@ const options = {
       schemas: {
         RWA: {
           type: 'object',
-          required: ['name', 'gpsCoordinates', 'city', 'country', 'currentValue', 'totalTokens'],
+          required: ['name', 'location', 'city', 'country', 'currentValue', 'totalTokens'],
           properties: {
             id: {
               type: 'integer',
@@ -30,48 +30,68 @@ const options = {
             },
             name: {
               type: 'string',
-              description: 'Nome do RWA',
+              description: 'Nome do imóvel',
             },
-            gpsCoordinates: {
+            location: {
               type: 'string',
-              description: 'Coordenadas GPS do RWA',
+              description: 'Endereço completo do imóvel',
             },
             city: {
               type: 'string',
-              description: 'Cidade do RWA',
+              description: 'Cidade do imóvel',
             },
             country: {
               type: 'string',
-              description: 'País do RWA',
+              description: 'País do imóvel',
             },
             description: {
               type: 'string',
-              description: 'Descrição do RWA',
+              description: 'Descrição detalhada do imóvel',
             },
             currentValue: {
               type: 'number',
-              description: 'Valor atual do RWA',
+              description: 'Valor atual do imóvel',
+              minimum: 0
             },
             totalTokens: {
               type: 'integer',
               description: 'Total de tokens disponíveis',
+              minimum: 1
             },
             yearBuilt: {
               type: 'integer',
-              description: 'Ano de construção',
+              description: 'Ano de construção do imóvel',
             },
             sizeM2: {
               type: 'number',
               description: 'Tamanho em metros quadrados',
+              minimum: 0
             },
             status: {
               type: 'string',
               enum: ['active', 'inactive', 'sold'],
-              description: 'Status do RWA',
+              description: 'Status do imóvel',
+              default: 'active'
             },
             geometry: {
               type: 'object',
-              description: 'Geometria do RWA em formato GeoJSON',
+              description: 'Coordenadas geográficas do imóvel',
+              properties: {
+                type: {
+                  type: 'string',
+                  enum: ['Point'],
+                  default: 'Point'
+                },
+                coordinates: {
+                  type: 'array',
+                  items: {
+                    type: 'number'
+                  },
+                  minItems: 2,
+                  maxItems: 2,
+                  description: '[longitude, latitude]'
+                }
+              }
             },
             createdAt: {
               type: 'string',

@@ -19,6 +19,13 @@ export interface RWA {
   };
   created_at?: string;
   updated_at?: string;
+  user_id?: number;
+  userId?: number;
+  current_value?: number;
+  total_tokens?: number;
+  year_built?: number;
+  size_m2?: number;
+  gps_coordinates?: string;
 }
 
 export interface RWAImage {

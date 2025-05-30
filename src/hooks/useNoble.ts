@@ -19,7 +19,7 @@ export const useNoble = () => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const signMessage = async (message: string, address: string): Promise<string> => {
+  const signMessage = async (message: string, address: string): Promise<{ signature: string, pub_key: { type: string, value: string }, debug?: any }> => {
     if (!window.keplr) {
       throw new Error('Keplr não está instalado');
     }
@@ -55,14 +55,21 @@ export const useNoble = () => {
 
       console.log('[Noble] Documento de assinatura:', signDoc);
 
-      const { signature } = await window.keplr.signAmino(
+      const result = await window.keplr.signAmino(
         'noble-1',
         address,
         signDoc
       );
 
-      console.log('[Noble] Assinatura gerada:', signature);
-      return JSON.stringify(signature);
+      console.log('[Noble] Assinatura gerada:', result.signature);
+      // O retorno de signAmino pode variar, garantir que result.signature é objeto
+      const sig = typeof result.signature === 'string' ? JSON.parse(result.signature) : result.signature;
+      const keplrSignature = {
+        signature: sig.signature,
+        pub_key: sig.pub_key,
+        debug: result,
+      };
+      return keplrSignature;
     } catch (err) {
       console.error('[Noble] Erro ao assinar mensagem:', err);
       throw new Error('Falha ao assinar mensagem: ' + (err instanceof Error ? err.message : String(err)));
@@ -85,7 +92,8 @@ export const useNoble = () => {
       console.log('[Noble] Permissão concedida pela extensão.');
 
       const offlineSigner = window.keplr.getOfflineSigner('noble-1');
-      const accounts = await offlineSigner.getAccounts();
+      const signer = await offlineSigner;
+      const accounts = await signer.getAccounts();
       console.log('[Noble] Contas obtidas:', accounts);
 
       if (accounts && accounts.length > 0) {
@@ -119,7 +127,7 @@ export const useNoble = () => {
   const disconnect = async () => {
     try {
       if (window.keplr) {
-        await window.keplr.disable('noble-1');
+        // await window.keplr.disable('noble-1');
       }
       authService.logout();
       return true;

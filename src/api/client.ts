@@ -24,16 +24,13 @@ const isPublicRoute = (url: string): boolean => {
   // Remove a base URL se presente e os parâmetros de query
   const path = url.replace(API_URL, '').split('?')[0];
   
-  return PUBLIC_ROUTES.some(route => {
-    // Converte o padrão da rota em uma expressão regular
-    const pattern = route
-      .replace(/\{.*?\}/g, '[^/]+') // Substitui {param} por qualquer caractere não-/
-      .replace(/\//g, '\\/'); // Escapa as barras
-    
-    const regex = new RegExp(`^${pattern}$`);
-    console.log('[API] Verificando rota pública:', { path, pattern, isMatch: regex.test(path) });
+  // Verificar se a rota é pública
+  const isPublicRoute = PUBLIC_ROUTES.some(pattern => {
+    const regex = new RegExp(pattern);
     return regex.test(path);
   });
+
+  return isPublicRoute;
 };
 
 const createAxiosInstance = (): AxiosInstance => {

@@ -105,13 +105,12 @@ export const Assets = () => {
             <FaSearch color="gray.300" />
           </InputLeftElement>
           <Input 
-            placeholder="Search properties by name, location or description..." 
+            placeholder="Buscar ativo..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             bg="rgba(255,255,255,0.1)"
             border="1px solid"
             borderColor="bgGrid"
-            _placeholder={{ color: "text.dim" }}
           />
         </InputGroup>
       </Box>
