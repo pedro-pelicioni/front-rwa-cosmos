@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -84,10 +84,11 @@ export const CreateProperty = () => {
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
+    if (name === 'gpsCoordinates') {
+      console.log('[GPS Input] handleInputChange:', value);
+    }
     setFormData(prev => ({ ...prev, [name]: value }));
-    // Limpa o erro quando o usuário começa a editar
     setFormError(null);
-    // Limpa o erro do campo específico
     setFieldErrors(prev => ({ ...prev, [name]: false }));
   };
   
@@ -214,9 +215,8 @@ export const CreateProperty = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log('[CreateProperty] Iniciando submissão do formulário');
-    console.log('[CreateProperty] Dados do formulário:', formData);
-    console.log('[CreateProperty] Tipo do price:', typeof formData.price);
-    console.log('[CreateProperty] Valor do price:', formData.price);
+    console.log('[CreateProperty] formData no início do submit:', formData);
+    console.log('[CreateProperty] formData.gpsCoordinates no início do submit:', formData.gpsCoordinates);
     
     setFormError(null);
     setFieldErrors({});
@@ -280,16 +280,22 @@ export const CreateProperty = () => {
         currentValue: parseFloat(formData.price),
         totalTokens: parseInt(formData.totalTokens),
         yearBuilt: formData.yearBuilt ? parseInt(formData.yearBuilt) : 0,
-        sizeM2: formData.squareMeters ? parseFloat(formData.squareMeters) : 0,
+        sizeM2: formData.squareMeters ? parseInt(formData.squareMeters) : 0,
         gpsCoordinates: formData.gpsCoordinates,
         status: 'active' as 'active',
         geometry: {},
         metadata: {
-          images: [],
-          documents: [],
-          amenities: []
-        }
+          images: formData.images,
+          documents: formData.documents,
+          amenities: formData.amenities,
+          yearBuilt: formData.yearBuilt ? parseInt(formData.yearBuilt) : 0,
+          squareMeters: formData.squareMeters ? parseInt(formData.squareMeters) : 0,
+          gpsCoordinates: formData.gpsCoordinates,
+        },
       };
+      console.log('[CreateProperty] gpsCoordinates no formData:', formData.gpsCoordinates);
+      console.log('[CreateProperty] gpsCoordinates no payload:', payload.gpsCoordinates);
+      console.log('[CreateProperty] gpsCoordinates no payload.metadata:', payload.metadata.gpsCoordinates);
       
       // Validação adicional para campos obrigatórios
       if (!formData.city || !formData.country) {
@@ -384,6 +390,13 @@ export const CreateProperty = () => {
     }
   };
 
+  useEffect(() => {
+    console.log('[CreateProperty] formData atualizado:', formData);
+    if (formData.gpsCoordinates !== undefined) {
+      console.log('[CreateProperty] formData.gpsCoordinates:', formData.gpsCoordinates);
+    }
+  }, [formData]);
+
   return (
     <Container maxW="container.md" py={8}>
       <VStack spacing={8} align="stretch" as="form" onSubmit={handleSubmit}>
@@ -459,7 +472,10 @@ export const CreateProperty = () => {
           <Input 
             name="gpsCoordinates"
             value={formData.gpsCoordinates}
-            onChange={handleInputChange}
+            onChange={e => {
+              console.log('[GPS Input] Valor digitado:', e.target.value);
+              handleInputChange(e);
+            }}
             placeholder="e.g., -23.5505, -46.6333"
             bg="rgba(255,255,255,0.05)"
             border="1px solid"
