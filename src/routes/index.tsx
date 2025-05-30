@@ -16,6 +16,7 @@ import { MyAccount } from '../pages/MyAccount';
 import { AssetDetails } from '../pages/AssetDetails';
 import { UserDashboard } from '../pages/UserDashboard';
 import { PaymentPage } from '../pages/PaymentPage';
+import { EditProperty } from '../pages/EditProperty';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -38,6 +39,7 @@ export const AppRoutes: React.FC = () => {
         {/* Novas rotas adicionais */}
         <Route path="/assets" element={<Assets />} />
         <Route path="/assets/:id" element={<AssetDetails />} />
+        <Route path="/assets/:id/edit" element={<EditProperty />} />
         <Route path="/latammap" element={<LatamMap />} />
         <Route path="/payment/:rwaId/:tokenId/:quantity/:pricePerToken" element={<PaymentPage />} />
         <Route path="/dashboard" element={<Navigate to="/wallet" replace />} />
