@@ -191,12 +191,12 @@ export const PaymentPage = () => {
           }
         } catch (e) {
           // fallback para asset.images ou asset.metadata.images
-          const metaImages = Array.isArray(asset?.metadata?.images) ? asset.metadata.images : [];
+          const metaImages = Array.isArray(asset?.metadata?.images) ? asset.metadata?.images : [];
           const assetImages = Array.isArray(asset?.images) ? asset.images : [];
           // LOG: fallback imagens
           console.log('[PaymentPage] Fallback imagens:', { metaImages, assetImages });
-          if (metaImages.length > 0) {
-            setMainImage(metaImages[0]);
+          if ((metaImages || []).length > 0) {
+            setMainImage((metaImages || [])[0]);
           } else if (assetImages.length > 0) {
             setMainImage(assetImages[0]);
           } else {
@@ -224,60 +224,34 @@ export const PaymentPage = () => {
     try {
       setProcessing(true);
       
-      // 1. Iniciar processo de venda
-      const sale = await tokenService.initiateSale(
-        tokenIdNum,
-        quantityNum,
-        pricePerTokenNum
-      );
-      setSaleInfo(sale);
-
-      // 2. Obter endereço da wallet
-      const walletAddress = await getAddress?.();
-
-      // 3. Criar mensagem para assinatura
-      const message = `Confirm purchase of ${quantityNum} tokens from ${tokenInfo.token_identifier} for ${pricePerTokenNum * quantityNum} USD`;
-
-      // 4. Obter assinatura
-      const signature = await signMessage?.(message);
-
-      // 5. Confirmar venda
-      const confirmedSale = await tokenService.confirmSale(
-        sale.id,
-        '0x0000000000000000000000000000000000000000000000000000000000000000', // txHash simulado
-        signature?.signature || ''
-      );
-
-      if (confirmedSale.status === 'completed') {
+      // 1. Transferir o token diretamente
+      const response = await apiClient.post(`/api/rwa/tokens/${tokenIdNum}/transfer`, {
+        pricePerToken: pricePerTokenNum,
+        quantity: quantityNum
+      });
+      
+      if (response.data) {
         toast({
           title: 'Sucesso',
-          description: 'Compra do token realizada com sucesso',
+          description: 'Token transferido com sucesso',
           status: 'success',
           duration: 5000,
           isClosable: true,
         });
         navigate('/wallet');
       } else {
-        throw new Error('Venda não foi completada');
+        throw new Error('Falha ao transferir token');
       }
     } catch (err) {
-      console.error('Erro no pagamento:', err);
-      setError('Erro ao processar pagamento');
+      console.error('Erro na transferência:', err);
+      setError('Erro ao processar transferência');
       toast({
         title: 'Erro',
-        description: 'Falha ao processar pagamento',
+        description: 'Falha ao processar transferência do token',
         status: 'error',
         duration: 5000,
         isClosable: true,
       });
-      // Se houver uma venda pendente, tenta cancelá-la
-      if (saleInfo?.id) {
-        try {
-          await tokenService.cancelSale(saleInfo.id);
-        } catch (cancelErr) {
-          console.error('Falha ao cancelar venda:', cancelErr);
-        }
-      }
     } finally {
       setProcessing(false);
     }
