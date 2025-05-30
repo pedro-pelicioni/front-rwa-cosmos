@@ -341,6 +341,12 @@ export const UserDashboard = () => {
               {user?.address && (
                 <Text color="gray.400" fontSize="sm">Wallet: {user.address}</Text>
               )}
+              {kycData?.nome && kycData?.cpf && (
+                <VStack align="start" spacing={0} mt={2}>
+                  <Text color="gray.300" fontSize="sm">Name: {kycData.nome}</Text>
+                  <Text color="gray.300" fontSize="sm">Document (CPF): {kycData.cpf}</Text>
+                </VStack>
+              )}
             </Box>
           </HStack>
         </CardHeader>
@@ -501,7 +507,7 @@ export const UserDashboard = () => {
       {/* KYC Initial Modal */}
       <Modal isOpen={isOpen} onClose={onClose}>
         <ModalOverlay />
-        <ModalContent>
+        <ModalContent bg="primary.500" color="text.light">
           <form onSubmit={handleKYCSubmit}>
             <ModalHeader>Complete your Registration</ModalHeader>
             <ModalCloseButton />
@@ -541,7 +547,7 @@ export const UserDashboard = () => {
       {/* Document Upload Modal */}
       <Modal isOpen={isDocModalOpen} onClose={() => setIsDocModalOpen(false)}>
         <ModalOverlay />
-        <ModalContent>
+        <ModalContent bg="primary.500" color="text.light">
           <form onSubmit={handleDocSubmit}>
             <ModalHeader>Upload KYC Documents</ModalHeader>
             <ModalCloseButton />
@@ -592,14 +598,7 @@ export const UserDashboard = () => {
       {/* Image Upload Modal */}
       <Modal isOpen={uploadModal.open} onClose={() => { setUploadModal({ open: false, propertyId: null }); setSelectedFile(null); }} isCentered>
         <ModalOverlay />
-        <ModalContent
-          bg="rgba(20,30,60,0.98)"
-          color="gray.100"
-          borderRadius="lg"
-          boxShadow="2xl"
-          border="1px solid #2a3656"
-          minW="350px"
-        >
+        <ModalContent bg="primary.500" color="text.light" borderRadius="lg" boxShadow="2xl" border="1px solid #2a3656" minW="350px">
           <ModalHeader fontWeight="bold">Upload Image</ModalHeader>
           <ModalCloseButton color="gray.200" />
           <ModalBody>

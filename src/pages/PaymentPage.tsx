@@ -30,6 +30,7 @@ import { tokenService } from '../services/tokenService';
 import { rwaService } from '../services/rwaService';
 import { marketplaceService } from '../services/marketplaceService';
 import { apiClient } from '../api/client';
+import { authService } from '../services/auth';
 
 export const PaymentPage = () => {
   // Hooks sempre no topo!
@@ -221,30 +222,48 @@ export const PaymentPage = () => {
     try {
       setProcessing(true);
       
+      // Verificar se o token existe
+      const token = authService.getToken();
+      if (!token) {
+        toast({
+          title: 'Erro de autenticação',
+          description: 'Por favor, faça login novamente',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+        navigate('/login');
+        return;
+      }
+
       // 1. Transferir o token diretamente
       const response = await apiClient.post(`/api/rwa/tokens/${tokenIdNum}/transfer`, {
         pricePerToken: pricePerTokenNum,
         quantity: quantityNum
+      }, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
       });
       
       if (response.data) {
         toast({
-          title: 'Success',
-          description: 'Token transferred successfully',
+          title: 'Sucesso',
+          description: 'Token transferido com sucesso',
           status: 'success',
           duration: 5000,
           isClosable: true,
         });
         navigate('/wallet');
       } else {
-        throw new Error('Failed to transfer token');
+        throw new Error('Falha ao transferir token');
       }
     } catch (err) {
       console.error('Erro na transferência:', err);
-      setError('Error processing transfer');
+      setError('Erro ao processar transferência');
       toast({
-        title: 'Error',
-        description: 'Failed to process token transfer',
+        title: 'Erro',
+        description: 'Falha ao processar transferência do token',
         status: 'error',
         duration: 5000,
         isClosable: true,

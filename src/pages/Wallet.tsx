@@ -54,7 +54,7 @@ import { imageService } from '../services/imageService';
 interface KYCData {
   id?: number;
   userId: number;
-  fullName: string;
+  nome: string;
   cpf: string;
   status: 'pending' | 'approved' | 'rejected' | 'not_started';
 }
@@ -200,7 +200,7 @@ export const Wallet = () => {
   };
 
   const handleStartKYC = () => {
-    if (!kycData?.fullName) {
+    if (!kycData?.nome) {
       onOpen();
     } else {
       navigate('/kyc');
@@ -316,6 +316,12 @@ export const Wallet = () => {
                 <Box>
                   <Text fontSize="lg" fontWeight="bold">{user?.name || 'User'}</Text>
                   <Text color="text.dim">{user?.address}</Text>
+                  {kycData?.nome && kycData?.cpf && (
+                    <VStack align="start" spacing={0} mt={2}>
+                      <Text color="text.dim" fontSize="sm">Nome: {kycData.nome}</Text>
+                      <Text color="text.dim" fontSize="sm">CPF: {kycData.cpf}</Text>
+                    </VStack>
+                  )}
                 </Box>
               </Flex>
               <Divider />
@@ -503,7 +509,7 @@ export const Wallet = () => {
       {/* KYC Initial Modal */}
       <Modal isOpen={isOpen} onClose={onClose}>
         <ModalOverlay />
-        <ModalContent>
+        <ModalContent bg="primary.500" color="text.light">
           <form onSubmit={handleKYCSubmit}>
             <ModalHeader>Complete your Registration</ModalHeader>
             <ModalCloseButton />
@@ -543,7 +549,7 @@ export const Wallet = () => {
       {/* Document upload modal */}
       <Modal isOpen={isDocModalOpen} onClose={closeDocModal}>
         <ModalOverlay />
-        <ModalContent>
+        <ModalContent bg="primary.500" color="text.light">
           <form onSubmit={handleDocSubmit}>
             <ModalHeader>KYC Document Upload</ModalHeader>
             <ModalCloseButton />
@@ -593,7 +599,7 @@ export const Wallet = () => {
 
       <Modal isOpen={uploadModal.open} onClose={() => { setUploadModal({ open: false, propertyId: null }); setSelectedFile(null); }}>
         <ModalOverlay />
-        <ModalContent>
+        <ModalContent bg="primary.500" color="text.light">
           <ModalHeader>Upload Image</ModalHeader>
           <ModalCloseButton />
           <ModalBody>

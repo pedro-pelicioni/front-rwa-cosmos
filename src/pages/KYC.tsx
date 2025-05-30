@@ -153,7 +153,7 @@ export const KYC = () => {
   }
 
   return (
-    <Container maxW="container.xl" py={8}>
+    <Container maxW="container.xl" py={8} bg="primary.500" color="text.light">
       <VStack spacing={8} align="stretch">
         <Box>
           <Heading size="lg" mb={4}>Verificação KYC</Heading>

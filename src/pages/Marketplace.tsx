@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Container,
@@ -18,6 +18,7 @@ import { MarketplaceFilters } from '../components/MarketplaceFilters';
 import { MarketplaceCard } from '../components/MarketplaceCard';
 import { EmptyState } from '../components/EmptyState';
 import { InvestmentModal } from '../components/InvestmentModal';
+import { debounce } from 'lodash';
 
 interface MarketplaceResponse {
   listings: TokenListing[];
@@ -35,14 +36,13 @@ export function MarketplacePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedListing, setSelectedListing] = useState<TokenListing | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
 
-  useEffect(() => {
-    loadListings();
-  }, [filters]);
-
-  const loadListings = async () => {
+  const loadListings = useCallback(async () => {
+    if (isRetrying) return;
+    
     setLoading(true);
     setError(null);
     try {
@@ -59,8 +59,28 @@ export function MarketplacePage() {
       });
     } finally {
       setLoading(false);
+      setIsRetrying(false);
     }
-  };
+  }, [filters, isRetrying, toast]);
+
+  // Debounce the loadListings function
+  const debouncedLoadListings = useCallback(
+    debounce(() => {
+      loadListings();
+    }, 500),
+    [loadListings]
+  );
+
+  useEffect(() => {
+    debouncedLoadListings();
+    return () => {
+      debouncedLoadListings.cancel();
+    };
+  }, [filters, debouncedLoadListings]);
+
+  const handleFiltersChange = useCallback((newFilters: any) => {
+    setFilters(newFilters);
+  }, []);
 
   const handleBuy = (listing: TokenListing) => {
     setSelectedListing(listing);
@@ -103,12 +123,19 @@ export function MarketplacePage() {
     <Container maxW="container.xl" py={10}>
       <Flex justify="space-between" align="center" mb={8}>
         <Heading>Real Estate Marketplace</Heading>
-        <Button colorScheme="blue" onClick={() => loadListings()}>
+        <Button 
+          colorScheme="blue" 
+          onClick={() => {
+            setIsRetrying(true);
+            loadListings();
+          }}
+          isLoading={loading}
+        >
           Refresh
         </Button>
       </Flex>
 
-      <MarketplaceFilters onChange={setFilters} />
+      <MarketplaceFilters onChange={handleFiltersChange} />
 
       {loading ? (
         <Center py={20}>
@@ -138,11 +165,11 @@ export function MarketplacePage() {
         </SimpleGrid>
       )}
 
-      {isOpen && (
+      {selectedListing && (
         <InvestmentModal
           isOpen={isOpen}
           onClose={onClose}
-          listing={selectedListing as TokenListing}
+          listing={selectedListing}
           onSuccess={() => {
             onClose();
             loadListings();
