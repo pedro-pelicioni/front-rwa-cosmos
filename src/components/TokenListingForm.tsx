@@ -9,6 +9,8 @@ interface TokenListingFormProps {
 
 export default function TokenListingForm({ nftTokenId, onSuccess }: TokenListingFormProps) {
   const [price, setPrice] = useState('');
+  const [originalPrice, setOriginalPrice] = useState('');
+  const [originalDate, setOriginalDate] = useState('');
   const [availableUntil, setAvailableUntil] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -18,8 +20,8 @@ export default function TokenListingForm({ nftTokenId, onSuccess }: TokenListing
     await marketplaceService.createListing({
       nft_token_id: typeof nftTokenId === 'string' ? parseInt(nftTokenId, 10) : nftTokenId,
       current_price: Number(price),
-      original_purchase_price: 0,
-      original_purchase_date: new Date().toISOString(),
+      original_purchase_price: Number(originalPrice),
+      original_purchase_date: originalDate,
       available_until: availableUntil,
     });
     setLoading(false);
@@ -31,6 +33,14 @@ export default function TokenListingForm({ nftTokenId, onSuccess }: TokenListing
       <FormControl mb={2}>
         <FormLabel>Preço de venda</FormLabel>
         <Input value={price} onChange={e => setPrice(e.target.value)} type="number" required />
+      </FormControl>
+      <FormControl mb={2}>
+        <FormLabel>Preço de compra original</FormLabel>
+        <Input value={originalPrice} onChange={e => setOriginalPrice(e.target.value)} type="number" required />
+      </FormControl>
+      <FormControl mb={2}>
+        <FormLabel>Data de compra original</FormLabel>
+        <Input value={originalDate} onChange={e => setOriginalDate(e.target.value)} type="date" required />
       </FormControl>
       <FormControl mb={2}>
         <FormLabel>Disponível até</FormLabel>

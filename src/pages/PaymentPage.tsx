@@ -30,7 +30,6 @@ import { tokenService } from '../services/tokenService';
 import { rwaService } from '../services/rwaService';
 import { marketplaceService } from '../services/marketplaceService';
 import { apiClient } from '../api/client';
-import { authService } from '../services/authService';
 
 export const PaymentPage = () => {
   // Hooks sempre no topo!
@@ -46,8 +45,8 @@ export const PaymentPage = () => {
   // Redireciona imediatamente se não estiver logado
   if (!user) {
     toast({
-      title: 'Login necessário',
-      description: 'Faça login para continuar com a compra.',
+      title: 'Login Required',
+      description: 'Please login to continue with the purchase.',
       status: 'warning',
       duration: 4000,
       isClosable: true,
@@ -57,11 +56,17 @@ export const PaymentPage = () => {
 
   const { rwaId, tokenId, quantity, pricePerToken } = params;
 
+  // LOG: parâmetros recebidos
+  console.log('[PaymentPage] Parâmetros recebidos:', { rwaId, tokenId, quantity, pricePerToken });
+
   // Validação dos parâmetros
   const rwaIdNum = Number(rwaId);
   const tokenIdNum = Number(tokenId);
   const quantityNum = Number(quantity);
   const pricePerTokenNum = Number(pricePerToken);
+
+  // LOG: parâmetros convertidos
+  console.log('[PaymentPage] Parâmetros convertidos:', { rwaIdNum, tokenIdNum, quantityNum, pricePerTokenNum });
 
   if (
     isNaN(rwaIdNum) ||
@@ -73,9 +78,9 @@ export const PaymentPage = () => {
       <Container centerContent py={10}>
         <Alert status="error">
           <AlertIcon />
-          <AlertTitle>Parâmetros inválidos</AlertTitle>
+          <AlertTitle>Invalid Parameters</AlertTitle>
           <AlertDescription>
-            Um ou mais parâmetros são inválidos. Por favor, volte e tente novamente.
+            One or more parameters are invalid. Please go back and try again.
           </AlertDescription>
         </Alert>
       </Container>
@@ -94,47 +99,113 @@ export const PaymentPage = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        
         // Buscar listing do marketplace
         const listings = await marketplaceService.listAvailable();
-        const listing = listings.data.find((l: any) => l.token?.id === tokenIdNum);
+        // LOG: listings retornados com detalhes
+        console.log('[PaymentPage] Listings retornados (detalhado):', JSON.stringify(listings.data, null, 2));
+        // LOG: tokenIdNum procurado
+        console.log('[PaymentPage] Procurando tokenIdNum:', tokenIdNum);
         
+        // Ajustando a lógica de busca para ser mais flexível
+        const listing = listings.data.find((l: any) => {
+          console.log('[PaymentPage] Verificando listing:', {
+            tokenId: l.token?.id,
+            tokenIdNum: tokenIdNum,
+            match: l.token && (Number(l.token.id) === tokenIdNum || l.token.id === tokenIdNum.toString())
+          });
+          return l.token && (Number(l.token.id) === tokenIdNum || l.token.id === tokenIdNum.toString());
+        });
+        
+        // LOG: resultado do find
+        console.log('[PaymentPage] Listing encontrado:', listing);
+
+        // Verificar se o token existe
         if (!listing) {
-          setError('Token não encontrado ou não está disponível para venda');
-          return;
+          // Verificar se o token existe em algum outro lugar
+          try {
+            const tokens = await tokenService.getByRWAId(rwaIdNum);
+            console.log('[PaymentPage] Tokens do RWA:', tokens);
+            const tokenObj = tokens.find(t => t.id === tokenIdNum);
+            if (tokenObj) {
+              // Se o usuário for o owner, não pode comprar
+              if (tokenObj.owner_user_id === user.id) {
+                setError(`You are the owner of token ${tokenIdNum} and cannot purchase it.`);
+                return;
+              }
+              // Criar um listing temporário para permitir a venda
+              const tempListing = {
+                id: -1,
+                token_id: tokenObj.id,
+                seller_id: tokenObj.owner_user_id,
+                buyer_id: null,
+                quantity: 1,
+                price_per_token: pricePerTokenNum.toString(),
+                transaction_hash: null,
+                signature: null,
+                status: 'available',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                token: tokenObj,
+                seller: { id: tokenObj.owner_user_id, email: '', wallet_address: '', created_at: '', updated_at: '' }
+              };
+              setTokenInfo(tokenObj);
+              setSaleInfo(tempListing);
+              // prosseguir normalmente
+            } else {
+              setError(`Token ${tokenIdNum} not found. Available tokens: ${listings.data.map((l: any) => l.token.id).join(', ')}`);
+              return;
+            }
+          } catch (err: any) {
+            console.error('[PaymentPage] Erro ao verificar token:', err);
+            setError(`Token ${tokenIdNum} not found or is not available for purchase. Error: ${err.message}`);
+            return;
+          }
+        } else {
+          // Verificar se o token está disponível para venda
+          if (listing.status !== 'available' && listing.status !== 'pending') {
+            setError(`Token ${tokenIdNum} is not available for purchase at the moment. Current status: ${listing.status}`);
+            return;
+          }
+          // Se o usuário for o owner, não pode comprar
+          if (listing.token?.owner_user_id === user.id) {
+            setError(`You are the owner of token ${tokenIdNum} and cannot purchase it.`);
+            return;
+          }
+          setTokenInfo(listing.token);
+          setSaleInfo(listing);
         }
 
         // Buscar asset pelo rwaId
         const asset = await rwaService.getById(rwaIdNum);
+        // LOG: asset retornado
+        console.log('[PaymentPage] Asset retornado:', asset);
         setAssetInfo(asset);
-        setTokenInfo(listing.token);
-        setSaleInfo(listing);
-
         // Buscar imagens do imóvel
         try {
           const imagesRes = await apiClient.get(`/api/rwa/images/rwa/${asset.id}`);
           const images = imagesRes.data;
+          // LOG: imagens retornadas
+          console.log('[PaymentPage] Imagens retornadas:', images);
           if (Array.isArray(images) && images.length > 0) {
             setMainImage(images[0].cid_link || images[0].file_path || images[0].image_data || '');
           }
         } catch (e) {
           // fallback para asset.images ou asset.metadata.images
           const metaImages = Array.isArray(asset?.metadata?.images) ? asset.metadata?.images : [];
-          const assetImages = Array.isArray(asset?.images) ? asset.images : [];
-          if (metaImages?.length && metaImages.length > 0) {
+          // LOG: fallback imagens
+          console.log('[PaymentPage] Fallback imagens:', { metaImages });
+          if (metaImages.length > 0) {
             setMainImage(metaImages[0]);
-          } else if (assetImages?.length && assetImages.length > 0) {
-            setMainImage(assetImages[0]);
           } else {
             setMainImage('https://placehold.co/280x160?text=No+Image');
           }
         }
       } catch (err) {
-        console.error('Erro ao carregar dados:', err);
-        setError('Erro ao carregar informações do pagamento');
+        console.error('[PaymentPage] Erro ao carregar dados:', err);
+        setError('Error loading payment information');
         toast({
-          title: 'Erro',
-          description: 'Falha ao carregar informações do pagamento',
+          title: 'Error',
+          description: 'Failed to load payment information',
           status: 'error',
           duration: 5000,
           isClosable: true,
@@ -149,60 +220,35 @@ export const PaymentPage = () => {
   const handlePayment = async () => {
     try {
       setProcessing(true);
-      // 1. Iniciar processo de venda
-      const sale = await tokenService.initiateSale(
-        tokenIdNum,
-        quantityNum,
-        pricePerTokenNum
-      );
-      setSaleInfo(sale);
-
-      // 2. Obter endereço da wallet
-      const walletAddress = await getAddress?.();
-
-      // 3. Criar mensagem para assinatura
-      const message = `Confirm purchase of ${quantityNum} tokens from ${tokenInfo.token_identifier} for ${pricePerTokenNum * quantityNum} USD`;
-
-      // 4. Obter assinatura
-      const signature = await signMessage?.(message);
-
-      // 5. Confirmar venda
-      const confirmedSale = await tokenService.confirmSale(
-        sale.id,
-        '0x0000000000000000000000000000000000000000000000000000000000000000',
-        signature?.signature || ''
-      );
-
-      if (confirmedSale.status === 'completed') {
+      
+      // 1. Transferir o token diretamente
+      const response = await apiClient.post(`/api/rwa/tokens/${tokenIdNum}/transfer`, {
+        pricePerToken: pricePerTokenNum,
+        quantity: quantityNum
+      });
+      
+      if (response.data) {
         toast({
-          title: 'Sucesso',
-          description: 'Compra do token realizada com sucesso',
+          title: 'Success',
+          description: 'Token transferred successfully',
           status: 'success',
           duration: 5000,
           isClosable: true,
         });
         navigate('/wallet');
       } else {
-        throw new Error('Venda não foi completada');
+        throw new Error('Failed to transfer token');
       }
     } catch (err) {
-      console.error('Erro no pagamento:', err);
-      setError('Erro ao processar pagamento');
+      console.error('Erro na transferência:', err);
+      setError('Error processing transfer');
       toast({
-        title: 'Erro',
-        description: 'Falha ao processar pagamento',
+        title: 'Error',
+        description: 'Failed to process token transfer',
         status: 'error',
         duration: 5000,
         isClosable: true,
       });
-      // Se houver uma venda pendente, tenta cancelá-la
-      if (saleInfo?.id) {
-        try {
-          await tokenService.cancelSale(saleInfo.id);
-        } catch (cancelErr) {
-          console.error('Falha ao cancelar venda:', cancelErr);
-        }
-      }
     } finally {
       setProcessing(false);
     }
@@ -239,7 +285,7 @@ export const PaymentPage = () => {
           <Box flex={1} bg="white" borderRadius="2xl" boxShadow="2xl" p={0} display="flex" alignItems="center" justifyContent="center" minW="320px" maxW="420px" minH="260px">
             <Image
               src={mainImage}
-              alt={assetInfo?.name || 'Imóvel'}
+              alt={assetInfo?.name || 'Property'}
               w="100%"
               h="260px"
               objectFit="cover"
@@ -258,8 +304,8 @@ export const PaymentPage = () => {
               <CardBody>
                 <VStack align="stretch" spacing={4}>
                   <Text><b>Token ID:</b> {tokenInfo?.token_identifier || tokenInfo?.id}</Text>
-                  <Text><b>Quantidade:</b> {quantityNum}</Text>
-                  <Text><b>Preço por token:</b> ${pricePerTokenNum}</Text>
+                  <Text><b>Quantity:</b> {quantityNum}</Text>
+                  <Text><b>Price per token:</b> ${pricePerTokenNum}</Text>
                   <Divider />
                   <Text fontSize="xl"><b>Total:</b> ${totalAmount}</Text>
                 </VStack>
@@ -271,9 +317,9 @@ export const PaymentPage = () => {
                   w="100%"
                   onClick={handlePayment}
                   isLoading={processing}
-                  loadingText="Processando..."
+                  loadingText="Processing..."
                 >
-                  Confirmar Compra
+                  Confirm Purchase
                 </Button>
               </CardFooter>
             </Card>

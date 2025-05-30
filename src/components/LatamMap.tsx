@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
-import { Box, Spinner, Select, Text, Slider, SliderTrack, SliderFilledTrack, SliderThumb, NumberInput, NumberInputField, NumberInputStepper, NumberIncrementStepper, NumberDecrementStepper, Flex, Image, Button, useDisclosure, IconButton, Stack } from '@chakra-ui/react';
+import { Box, Spinner, Select, Text, Slider, SliderTrack, SliderFilledTrack, SliderThumb, NumberInput, NumberInputField, Flex, Image, Button, useDisclosure, IconButton, Stack } from '@chakra-ui/react';
 import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -397,7 +397,6 @@ type LatamMapProps = {
   mapHeight?: string;
   mapZoom?: number;
   mapInteractive?: boolean;
-  onValueChange?: (value: number) => void;
 };
 
 export function LatamMap({
@@ -406,7 +405,6 @@ export function LatamMap({
   mapHeight = '300px',
   mapZoom = 15,
   mapInteractive = false,
-  onValueChange,
 }: LatamMapProps) {
   const [assets, setAssets] = useState<RWA[]>([]);
   const [loading, setLoading] = useState(true);
@@ -420,7 +418,6 @@ export function LatamMap({
   const [panToPosition, setPanToPosition] = useState<[number, number] | null>(null);
   const [panToTrigger, setPanToTrigger] = useState(0);
   const navigate = useNavigate();
-  const [value, setValue] = useState<number>(0);
 
   useEffect(() => {
     const fetchAssets = async () => {
@@ -432,25 +429,33 @@ export function LatamMap({
         const tokensObj: {[key: number]: number} = {};
         await Promise.all(data.map(async (asset) => {
           try {
-            const images = await imageService.getByRWAId(asset.id);
-            imagesObj[asset.id] = images;
-          } catch (err) {
-            imagesObj[asset.id] = [];
+            if (asset.id) {
+              const images = await imageService.getByRWAId(asset.id);
+              imagesObj[asset.id] = images;
+            }
+          } catch (e) {
+            if (asset.id) {
+              imagesObj[asset.id] = [];
+            }
           }
+
           try {
-            const tokens = await tokenService.getByRWAId(asset.id);
-            tokensObj[asset.id] = Array.isArray(tokens) ? tokens.length : 0;
-          } catch (err) {
-            tokensObj[asset.id] = 0;
+            if (asset.id) {
+              const tokens = await tokenService.getByRWAId(asset.id);
+              tokensObj[asset.id] = Array.isArray(tokens) ? tokens.length : 0;
+            }
+          } catch (e) {
+            if (asset.id) {
+              tokensObj[asset.id] = 0;
+            }
           }
+
+          return {
+            ...asset,
+            availableTokens: asset.id ? (tokensObj[asset.id] ?? (asset.totalTokens ?? asset.total_tokens ?? 0)) : 0,
+          };
         }));
-        // Mapeia os assets para incluir availableTokens
-        const mapped = data.map(asset => ({
-          ...asset,
-          totalTokens: asset.totalTokens ?? asset.total_tokens ?? 0,
-          availableTokens: tokensObj[asset.id] ?? (asset.totalTokens ?? asset.total_tokens ?? 0),
-        }));
-        setAssets(mapped);
+        setAssets(data);
         setAssetImages(imagesObj);
       } catch (err) {
         setAssets([]);
@@ -498,12 +503,6 @@ export function LatamMap({
 
   const handleViewDetails = (asset: RWA) => {
     navigate(`/assets/${asset.id}`);
-  };
-
-  const handleValueChange = (valueString: string) => {
-    const newValue = parseFloat(valueString);
-    setValue(newValue);
-    onValueChange?.(newValue);
   };
 
   // Se singleAsset, renderizar mapa focado apenas nele
@@ -578,7 +577,6 @@ export function LatamMap({
           bg="rgba(255,255,255,0.08)"
           color="white"
           borderColor="#2a4365"
-          _placeholder={{ color: 'gray.300' }}
           _hover={{ borderColor: 'accent.500' }}
           maxW="200px"
         >
@@ -589,16 +587,32 @@ export function LatamMap({
         <Flex align="center" gap={2} minW="200px">
           <Text color="gray.200" fontSize="sm">Token Price:</Text>
           <NumberInput
-            value={value}
+            size="sm"
+            value={minPrice ?? ''}
+            onChange={(_, v) => setMinPrice(Number.isNaN(v) ? undefined : v)}
             min={0}
-            max={1000000}
-            onChange={handleValueChange}
+            max={maxPrice ?? undefined}
+            placeholder="Min"
+            w="70px"
+            bg="rgba(255,255,255,0.08)"
+            color="white"
+            borderColor="#2a4365"
           >
             <NumberInputField />
-            <NumberInputStepper>
-              <NumberIncrementStepper />
-              <NumberDecrementStepper />
-            </NumberInputStepper>
+          </NumberInput>
+          <Text color="gray.400">-</Text>
+          <NumberInput
+            size="sm"
+            value={maxPrice ?? ''}
+            onChange={(_, v) => setMaxPrice(Number.isNaN(v) ? undefined : v)}
+            min={minPrice ?? 0}
+            placeholder="Max"
+            w="70px"
+            bg="rgba(255,255,255,0.08)"
+            color="white"
+            borderColor="#2a4365"
+          >
+            <NumberInputField />
           </NumberInput>
         </Flex>
       </Flex>
@@ -634,8 +648,8 @@ export function LatamMap({
               : [null, null];
             if (!lat || !lng) return null;
 
-            const images = assetImages[asset.id] || [];
-            const imageUrls = images.map(img => img.image_data || img.file_path || img.cid_link).filter(Boolean);
+            const assetImagesList = asset.id ? (assetImages[asset.id] || []) : [];
+            const imageUrls = assetImagesList.map((img: any) => img.image_data || img.file_path || img.cid_link).filter(Boolean);
 
             return (
               <Marker

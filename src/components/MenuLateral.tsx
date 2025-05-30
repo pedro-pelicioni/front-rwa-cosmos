@@ -5,6 +5,7 @@ import keplrIcon from '../constants/keplr-icon.webp';
 import metamaskIcon from '../constants/metamask-icon.png';
 import coinbaseIcon from '../constants/coinbase-icon.webp';
 import { WalletConnectModal } from './WalletConnectModal';
+import { Link as RouterLink } from 'react-router-dom';
 
 export const MenuLateral = () => {
   const { isOpen: isMenuOpen, onOpen: onMenuOpen, onClose: onMenuClose } = useDisclosure();
@@ -26,6 +27,15 @@ export const MenuLateral = () => {
           icon={<HamburgerIcon />}
           onClick={onMenuOpen}
         />
+        <Button
+          as={RouterLink}
+          to="/wallet"
+          colorScheme="teal"
+          variant="outline"
+          mr={2}
+        >
+          Wallet
+        </Button>
         {user?.isConnected ? (
           <Button 
             colorScheme="red" 

@@ -18,7 +18,7 @@ const options = {
       schemas: {
         RWA: {
           type: 'object',
-          required: ['name', 'gpsCoordinates', 'city', 'country', 'currentValue', 'totalTokens'],
+          required: ['name', 'location', 'city', 'country', 'currentValue', 'totalTokens'],
           properties: {
             id: {
               type: 'integer',
@@ -30,48 +30,68 @@ const options = {
             },
             name: {
               type: 'string',
-              description: 'Nome do RWA',
+              description: 'Nome do imóvel',
             },
-            gpsCoordinates: {
+            location: {
               type: 'string',
-              description: 'Coordenadas GPS do RWA',
+              description: 'Endereço completo do imóvel',
             },
             city: {
               type: 'string',
-              description: 'Cidade do RWA',
+              description: 'Cidade do imóvel',
             },
             country: {
               type: 'string',
-              description: 'País do RWA',
+              description: 'País do imóvel',
             },
             description: {
               type: 'string',
-              description: 'Descrição do RWA',
+              description: 'Descrição detalhada do imóvel',
             },
             currentValue: {
               type: 'number',
-              description: 'Valor atual do RWA',
+              description: 'Valor atual do imóvel',
+              minimum: 0
             },
             totalTokens: {
               type: 'integer',
               description: 'Total de tokens disponíveis',
+              minimum: 1
             },
             yearBuilt: {
               type: 'integer',
-              description: 'Ano de construção',
+              description: 'Ano de construção do imóvel',
             },
             sizeM2: {
               type: 'number',
               description: 'Tamanho em metros quadrados',
+              minimum: 0
             },
             status: {
               type: 'string',
               enum: ['active', 'inactive', 'sold'],
-              description: 'Status do RWA',
+              description: 'Status do imóvel',
+              default: 'active'
             },
             geometry: {
               type: 'object',
-              description: 'Geometria do RWA em formato GeoJSON',
+              description: 'Coordenadas geográficas do imóvel',
+              properties: {
+                type: {
+                  type: 'string',
+                  enum: ['Point'],
+                  default: 'Point'
+                },
+                coordinates: {
+                  type: 'array',
+                  items: {
+                    type: 'number'
+                  },
+                  minItems: 2,
+                  maxItems: 2,
+                  description: '[longitude, latitude]'
+                }
+              }
             },
             createdAt: {
               type: 'string',
@@ -366,7 +386,64 @@ const options = {
               description: 'Mensagem de erro',
             },
           },
-        }
+        },
+        KYC: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'integer',
+              description: 'ID do registro KYC'
+            },
+            wallet_address: {
+              type: 'string',
+              description: 'Endereço da wallet do usuário'
+            },
+            nome: {
+              type: 'string',
+              description: 'Nome completo do usuário'
+            },
+            cpf: {
+              type: 'string',
+              description: 'CPF do usuário'
+            },
+            documento_frente_cid: {
+              type: 'string',
+              description: 'CID do documento de frente no IPFS'
+            },
+            documento_verso_cid: {
+              type: 'string',
+              description: 'CID do documento de verso no IPFS'
+            },
+            selfie_1_cid: {
+              type: 'string',
+              description: 'CID da primeira selfie no IPFS'
+            },
+            selfie_2_cid: {
+              type: 'string',
+              description: 'CID da segunda selfie no IPFS'
+            },
+            status: {
+              type: 'string',
+              enum: ['pendente', 'aprovado', 'rejeitado'],
+              description: 'Status do KYC'
+            },
+            etapa: {
+              type: 'string',
+              enum: ['dados_basicos', 'documentos'],
+              description: 'Etapa atual do processo de KYC'
+            },
+            created_at: {
+              type: 'string',
+              format: 'date-time',
+              description: 'Data de criação'
+            },
+            updated_at: {
+              type: 'string',
+              format: 'date-time',
+              description: 'Data de atualização'
+            }
+          }
+        },
       },
       securitySchemes: {
         bearerAuth: {
@@ -374,6 +451,12 @@ const options = {
           scheme: 'bearer',
           bearerFormat: 'JWT',
         },
+        walletAuth: {
+          type: 'apiKey',
+          in: 'header',
+          name: 'Authorization',
+          description: 'Token JWT obtido após autenticação via wallet'
+        }
       },
     },
     paths: {
@@ -796,6 +879,190 @@ const options = {
             500: { description: 'Erro ao verificar disponibilidade' }
           }
         }
+<<<<<<< HEAD
+      },
+      '/api/users/kyc/basic': {
+        post: {
+          summary: 'Enviar dados básicos para KYC (etapa 1)',
+          description: 'Envia nome e CPF para iniciar o processo de KYC',
+          tags: ['Usuários'],
+          security: [{ walletAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['nome', 'cpf'],
+                  properties: {
+                    nome: {
+                      type: 'string',
+                      description: 'Nome completo do usuário'
+                    },
+                    cpf: {
+                      type: 'string',
+                      description: 'CPF do usuário'
+                    }
+                  }
+                }
+              }
+            }
+          },
+          responses: {
+            201: {
+              description: 'Dados básicos enviados com sucesso',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      message: {
+                        type: 'string',
+                        example: 'Dados básicos enviados com sucesso'
+                      },
+                      kyc_id: {
+                        type: 'integer',
+                        description: 'ID do registro KYC'
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            400: {
+              description: 'Dados inválidos ou KYC já iniciado',
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/Error'
+                  }
+                }
+              }
+            },
+            401: {
+              description: 'Não autorizado'
+            },
+            500: {
+              description: 'Erro interno do servidor'
+            }
+          }
+        }
+      },
+      '/api/users/kyc/documents': {
+        post: {
+          summary: 'Enviar documentos para KYC (etapa 2)',
+          description: 'Envia documentos e selfies para completar o KYC',
+          tags: ['Usuários'],
+          security: [{ walletAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'multipart/form-data': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    documento_frente: {
+                      type: 'string',
+                      format: 'binary',
+                      description: 'Frente do documento de identidade'
+                    },
+                    documento_verso: {
+                      type: 'string',
+                      format: 'binary',
+                      description: 'Verso do documento de identidade'
+                    },
+                    selfie_1: {
+                      type: 'string',
+                      format: 'binary',
+                      description: 'Primeira selfie com documento'
+                    },
+                    selfie_2: {
+                      type: 'string',
+                      format: 'binary',
+                      description: 'Segunda selfie com documento'
+                    }
+                  }
+                }
+              }
+            }
+          },
+          responses: {
+            200: {
+              description: 'Documentos enviados com sucesso',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      message: {
+                        type: 'string',
+                        example: 'Documentos enviados com sucesso'
+                      },
+                      kyc_id: {
+                        type: 'integer',
+                        description: 'ID do registro KYC'
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            400: {
+              description: 'Dados inválidos ou etapa 1 não concluída',
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/Error'
+                  }
+                }
+              }
+            },
+            401: {
+              description: 'Não autorizado'
+            },
+            500: {
+              description: 'Erro interno do servidor'
+            }
+          }
+        }
+      },
+      '/api/users/kyc': {
+        get: {
+          summary: 'Obter status KYC',
+          description: 'Retorna o status e etapa atual da verificação KYC do usuário',
+          tags: ['Usuários'],
+          security: [{ walletAuth: [] }],
+          responses: {
+            200: {
+              description: 'Status KYC retornado com sucesso',
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/KYC'
+                  }
+                }
+              }
+            },
+            401: {
+              description: 'Não autorizado'
+            },
+            404: {
+              description: 'KYC não encontrado',
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/Error'
+                  }
+                }
+              }
+            },
+            500: {
+              description: 'Erro interno do servidor'
+            }
+          }
+        }
+=======
+>>>>>>> main
       }
     }
   },

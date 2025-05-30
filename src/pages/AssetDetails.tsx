@@ -9,7 +9,7 @@ import {
   ModalFooter, NumberInput, NumberInputField,
   FormControl, FormLabel, useToast, Spinner, Stack, IconButton,
   AlertDialog, AlertDialogOverlay, AlertDialogContent, AlertDialogHeader,
-  AlertDialogBody, AlertDialogFooter, Icon as ChakraIcon, IconProps
+  AlertDialogBody, AlertDialogFooter
 } from '@chakra-ui/react';
 import { FaMapMarkerAlt, FaCalendarAlt, FaBuilding, FaCoins, FaFileAlt, FaUserAlt, FaEdit, FaTrash } from 'react-icons/fa';
 import { Property } from '../types/Property';
@@ -24,6 +24,7 @@ import { getImageFromIDB, setImageToIDB } from '../utils/imageIDBCache';
 import { useRWATokens } from '../hooks/useRWATokens';
 import { marketplaceService } from '../services/marketplaceService';
 import { apiClient } from '../api/client';
+import { CreateProperty } from './CreateProperty';
 
 // Hook customizado para gerenciar o carregamento do asset
 const useAssetLoader = (id: string | undefined) => {
@@ -41,7 +42,17 @@ const useAssetLoader = (id: string | undefined) => {
   const MAX_RETRIES = 3;
 
   const fetchData = useCallback(async () => {
-    if (!id) return;
+    // Se for criação, não buscar nada!
+    if (!id || id === 'new') {
+      setState({
+        property: null,
+        images: [],
+        isLoading: false,
+        error: null,
+        isInitialLoad: false
+      });
+      return;
+    }
 
     // Cancela requisição anterior se existir
     if (abortController.current) {
@@ -311,10 +322,19 @@ export const AssetDetails = () => {
   const totalTokensNum = typeof property?.totalTokens === 'string' ? parseInt(property.totalTokens, 10) : property?.totalTokens ?? 0;
 
   const availableTokensNum = useMemo(() => {
-    return typeof property?.availableTokens === 'string' 
-      ? parseInt(property.availableTokens, 10) 
-      : property?.availableTokens ?? 0;
-  }, [property?.availableTokens]);
+    // Tokens NFT que não pertencem ao usuário logado
+    const userIdNum = typeof user?.id === 'string' ? parseInt(user.id, 10) : user?.id ?? 0;
+    // IDs dos tokens em processo de venda (listings ativos)
+    const tokensEmVenda = marketplaceListings
+      .filter((listing: any) => listing.status === 'active' && listing.token?.rwa_id === propertyIdNum)
+      .map((listing: any) => listing.token?.id);
+    // Filtra tokens NFT disponíveis para investimento
+    const disponiveis = nftTokens.filter(t =>
+      t.owner_user_id !== userIdNum &&
+      !tokensEmVenda.includes(t.id)
+    );
+    return disponiveis.length;
+  }, [nftTokens, user, marketplaceListings, propertyIdNum]);
 
   const tokenPriceNum = useMemo(() => {
     return typeof property?.metadata?.tokenPrice === 'string' 
@@ -367,6 +387,10 @@ export const AssetDetails = () => {
         <Button mt={4} onClick={() => navigate('/assets')}>Voltar para Imóveis</Button>
       </Box>
     );
+  }
+
+  if (!id || id === 'new') {
+    return <CreateProperty />;
   }
 
   if (!property) {
@@ -456,7 +480,7 @@ export const AssetDetails = () => {
                 left={4}
                 colorScheme="orange"
                 size="sm"
-                leftIcon={<ChakraIcon as={FaEdit as any} color="#002D5B" />}
+                leftIcon={<FaEdit />}
               >
                 Editar Propriedade
               </Button>
@@ -518,7 +542,7 @@ export const AssetDetails = () => {
                   mapInteractive={false}
                 />
                 <Box position="absolute" top={1} right={1} bg="whiteAlpha.800" borderRadius="full" p={1} zIndex={2}>
-                  <ChakraIcon as={FaMapMarkerAlt as any} color="#002D5B" />
+                  <FaMapMarkerAlt color="#002D5B" />
                 </Box>
               </Box>
             )}
@@ -528,7 +552,7 @@ export const AssetDetails = () => {
           <Box mb={8}>
             <Heading as="h1" size="xl" mb={2}>{property.name}</Heading>
             <Flex align="center" color="text.dim" mb={4}>
-              <ChakraIcon as={FaMapMarkerAlt as any} color="#002D5B" />
+              <FaMapMarkerAlt />
               <Text ml={2}>{property.location}</Text>
             </Flex>
             
@@ -538,28 +562,28 @@ export const AssetDetails = () => {
             
             <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} mb={6}>
               <HStack spacing={2}>
-                <ChakraIcon as={FaCalendarAlt as any} color="#002D5B" />
+                <FaCalendarAlt />
                 <Text>
                   Year Built: {property.yearBuilt ?? property.metadata?.yearBuilt ?? 'N/A'}
                 </Text>
               </HStack>
               
               <HStack spacing={2}>
-                <ChakraIcon as={FaBuilding as any} color="#002D5B" />
+                <FaBuilding />
                 <Text>
                   Size: {property.sizeM2 ?? property.metadata?.sizeM2 ?? property.metadata?.squareMeters ?? 'N/A'} m²
                 </Text>
               </HStack>
               
               <HStack spacing={2}>
-                <ChakraIcon as={FaCoins as any} color="#002D5B" />
+                <FaCoins />
                 <Text>
                   Total Tokens: {property.totalTokens ?? property.metadata?.totalTokens ?? 'N/A'}
                 </Text>
               </HStack>
               
               <HStack spacing={2}>
-                <ChakraIcon as={FaCoins as any} color="#002D5B" />
+                <FaCoins />
                 <Text>
                   Available Tokens: {property.availableTokens ?? property.metadata?.availableTokens ?? 'N/A'}
                 </Text>
@@ -602,7 +626,7 @@ export const AssetDetails = () => {
                           borderRadius="md"
                         >
                           <HStack>
-                            <ChakraIcon as={FaBuilding as any} color="#002D5B" />
+                            <FaBuilding />
                             <Box>
                               <Text fontWeight="bold">{facility.name}</Text>
                               <Text fontSize="sm" color="text.dim">{facility.type} - {facility.size_m2 || "N/A"}m²</Text>
@@ -621,7 +645,7 @@ export const AssetDetails = () => {
                 
                 <TabPanel>
                   <HStack spacing={4} mb={4}>
-                    <ChakraIcon as={FaUserAlt as any} color="#002D5B" size={24} />
+                    <FaUserAlt size={24} />
                     <Box>
                       <Text fontWeight="bold">Owner Address</Text>
                       <Text color="text.dim">
@@ -852,14 +876,14 @@ export const AssetDetails = () => {
                           <Flex gap={2} mt={2} justify="flex-end">
                             <IconButton
                               aria-label="Editar token"
-                              icon={<ChakraIcon as={FaEdit as any} color="#002D5B" />}
+                              icon={<FaEdit />}
                               size="sm"
                               colorScheme="blue"
                               onClick={() => handleEditToken(token)}
                             />
                             <IconButton
                               aria-label="Excluir token"
-                              icon={<ChakraIcon as={FaTrash as any} color="#002D5B" />}
+                              icon={<FaTrash />}
                               size="sm"
                               colorScheme="red"
                               onClick={() => openDeleteDialog(token)}

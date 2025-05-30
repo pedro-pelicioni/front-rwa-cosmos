@@ -20,7 +20,7 @@ export const rwaService = {
     return {
       id: raw.id,
       name: raw.name,
-      userId: raw.user_id,
+      user_id: raw.user_id,
       gpsCoordinates: raw.gps_coordinates,
       city: raw.city,
       country: raw.country,
@@ -31,13 +31,41 @@ export const rwaService = {
       sizeM2: typeof raw.size_m2 === 'string' ? parseFloat(raw.size_m2) : raw.size_m2,
       status: raw.status,
       geometry: raw.geometry,
-      createdAt: raw.created_at,
-      updatedAt: raw.updated_at,
+      created_at: raw.created_at,
+      updated_at: raw.updated_at,
+      location: `${raw.city}, ${raw.country}`,
+      metadata: {
+        images: [],
+        documents: [],
+        amenities: []
+      }
     };
   },
 
   async create(rwa: Omit<RWA, 'id' | 'createdAt' | 'updatedAt'>): Promise<RWA> {
-    const response = await apiClient.post<RWA>('/api/rwa', rwa);
+    // Garantir que os campos obrigatórios estejam presentes
+    const payload = {
+      name: rwa.name,
+      description: rwa.description || '',
+      location: `${rwa.city}, ${rwa.country}`,
+      city: rwa.city,
+      country: rwa.country,
+      currentValue: typeof rwa.currentValue === 'string' ? parseFloat(rwa.currentValue) : rwa.currentValue,
+      totalTokens: rwa.totalTokens,
+      yearBuilt: rwa.yearBuilt || 0,
+      sizeM2: rwa.sizeM2 || 0,
+      gpsCoordinates: rwa.gpsCoordinates ? rwa.gpsCoordinates.split(',').map(c => c.trim()).reverse().join(', ') : '',
+      status: rwa.status || 'active',
+      geometry: rwa.geometry || {},
+      metadata: rwa.metadata || {
+        images: [],
+        documents: [],
+        amenities: []
+      }
+    };
+
+    console.log('[rwaService] Enviando payload para criação:', payload);
+    const response = await apiClient.post<RWA>('/api/rwa', payload);
     return response.data;
   },
 

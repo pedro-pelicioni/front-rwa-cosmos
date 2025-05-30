@@ -6,8 +6,8 @@ interface KeplrWindow {
   keplr?: {
     enable: (chainId: string) => Promise<void>;
     getOfflineSigner: (chainId: string) => OfflineDirectSigner;
-    signArbitrary: (chainId: string, address: string, message: string) => Promise<{ signature: string }>;
-    getKey: (chainId: string) => Promise<{ algo: string; pubKey: Uint8Array }>;
+    disable: (chainId: string) => Promise<void>;
+    signAmino: (chainId: string, signer: string, signDoc: any) => Promise<{ signature: any }>;
   };
 }
 
@@ -19,7 +19,7 @@ export const useNoble = () => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const signMessage = async (message: string, address: string): Promise<string> => {
+  const signMessage = async (message: string, address: string): Promise<{ signature: string, pub_key: { type: string, value: string }, debug?: any }> => {
     if (!window.keplr) {
       throw new Error('Keplr não está instalado');
     }
@@ -33,14 +33,43 @@ export const useNoble = () => {
       
       console.log('[Noble] Mensagem em base64:', base64Message);
 
-      const signature = await window.keplr.signArbitrary(
+      const signDoc = {
+        chain_id: '',
+        account_number: '0',
+        sequence: '0',
+        fee: {
+          amount: [],
+          gas: '0',
+        },
+        msgs: [
+          {
+            type: 'sign/MsgSignData',
+            value: {
+              signer: address,
+              data: base64Message,
+            },
+          },
+        ],
+        memo: '',
+      };
+
+      console.log('[Noble] Documento de assinatura:', signDoc);
+
+      const result = await window.keplr.signAmino(
         'noble-1',
         address,
-        base64Message
+        signDoc
       );
 
-      console.log('[Noble] Assinatura gerada:', signature);
-      return signature.signature;
+      console.log('[Noble] Assinatura gerada:', result.signature);
+      // O retorno de signAmino pode variar, garantir que result.signature é objeto
+      const sig = typeof result.signature === 'string' ? JSON.parse(result.signature) : result.signature;
+      const keplrSignature = {
+        signature: sig.signature,
+        pub_key: sig.pub_key,
+        debug: result,
+      };
+      return keplrSignature;
     } catch (err) {
       console.error('[Noble] Erro ao assinar mensagem:', err);
       throw new Error('Falha ao assinar mensagem: ' + (err instanceof Error ? err.message : String(err)));
@@ -63,7 +92,8 @@ export const useNoble = () => {
       console.log('[Noble] Permissão concedida pela extensão.');
 
       const offlineSigner = window.keplr.getOfflineSigner('noble-1');
-      const accounts = await (await offlineSigner).getAccounts();
+      const signer = await offlineSigner;
+      const accounts = await signer.getAccounts();
       console.log('[Noble] Contas obtidas:', accounts);
 
       if (accounts && accounts.length > 0) {
@@ -76,17 +106,7 @@ export const useNoble = () => {
         const signature = await signMessage(nonce, address);
         console.log('[Noble] Assinatura do nonce:', signature);
         
-        const key = await window.keplr.getKey('noble-1');
-        const pubKey = {
-          type: key.algo === 'secp256k1' ? 'tendermint/PubKeySecp256k1' : key.algo,
-          value: key.pubKey ? Buffer.from(key.pubKey).toString('base64') : ''
-        };
-        const authResponse = await authService.loginWithWallet({
-          address,
-          signature,
-          pub_key: pubKey,
-          nonce
-        });
+        const authResponse = await authService.loginWithWallet(address, signature, nonce);
         console.log('[Noble] Resposta do backend após login:', authResponse);
         
         return authResponse;
@@ -106,6 +126,9 @@ export const useNoble = () => {
 
   const disconnect = async () => {
     try {
+      if (window.keplr) {
+        // await window.keplr.disable('noble-1');
+      }
       authService.logout();
       return true;
     } catch (err) {

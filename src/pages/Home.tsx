@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Box, Heading, Text, Stack, Container, SimpleGrid, Button, Flex, Image, useInterval, SlideFade, Fade } from '@chakra-ui/react'
+import { Box, Heading, Text, Stack, Container, SimpleGrid, Button, Flex, Image, useInterval, SlideFade, Fade, Spinner, Center } from '@chakra-ui/react'
 import { Link as RouterLink } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import homeIllustration from '../assets/home-illustration.svg'
@@ -77,6 +77,14 @@ export const Home = () => {
     }).format(amount);
   };
 
+  if (isLoading) {
+    return (
+      <Center minH="400px">
+        <Spinner size="xl" color="orange.400" />
+      </Center>
+    );
+  }
+
   return (
     <Box py={12}>
       {/* Hero Section */}
@@ -131,7 +139,6 @@ export const Home = () => {
           {/* Right Content - Graphic Illustration */}
           <Box 
             p={8}
-            bg="primary.500"
             border="1px solid"
             borderColor="bgGrid"
             borderRadius="xl"

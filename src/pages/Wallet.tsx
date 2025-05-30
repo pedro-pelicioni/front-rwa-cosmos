@@ -31,7 +31,18 @@ import {
   TableContainer,
   Select,
   Flex,
-  Spinner
+  Spinner,
+  Avatar,
+  Card,
+  CardHeader,
+  CardBody,
+  CardFooter,
+  Divider,
+  Alert,
+  AlertIcon,
+  AlertTitle,
+  AlertDescription,
+  Image
 } from '@chakra-ui/react';
 import { useAuth } from '../hooks';
 import { useNavigate } from 'react-router-dom';
@@ -88,6 +99,14 @@ export const Wallet = () => {
   const itemsPerPage = 10;
   const isMounted = useRef(true);
   const fetchAttempted = useRef(false);
+  const [isDocModalOpen, setIsDocModalOpen] = useState(false);
+  const [docForm, setDocForm] = useState({
+    documento_frente: null as File | null,
+    documento_verso: null as File | null,
+    selfie_1: null as File | null,
+    selfie_2: null as File | null,
+  });
+  const [docPreviews, setDocPreviews] = useState<{[key: string]: string}>({});
 
   useEffect(() => {
     return () => {
@@ -106,7 +125,7 @@ export const Wallet = () => {
 
     try {
       // Busca dados KYC
-      const kycResponse = await apiClient.get(`/api/kyc/${user.id}`);
+      const kycResponse = await apiClient.get('/api/users/kyc');
       if (isMounted.current) {
         setKycData(kycResponse.data);
       }
@@ -141,32 +160,20 @@ export const Wallet = () => {
 
   const handleKYCSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
     try {
-      if (kycData?.id) {
-        await apiClient.put(`/api/kyc/${kycData.id}`, formData);
-      } else {
-        await apiClient.post('/api/kyc', {
-          ...formData,
-          userId: user?.id,
-          status: 'pending'
-        });
-      }
-
-      toast({
-        title: 'Dados salvos com sucesso!',
-        status: 'success',
-        duration: 3000
+      const response = await apiClient.post('/api/users/kyc/basic', {
+        nome: formData.fullName,
+        cpf: formData.cpf
       });
-
+      // Se quiser, salve o kyc_id: response.data.kyc_id
       onClose();
-      fetchData();
-    } catch (error) {
-      toast({
-        title: 'Erro ao salvar dados',
-        description: 'Tente novamente mais tarde',
-        status: 'error',
-        duration: 3000
-      });
+      toast({ title: 'Dados enviados!', status: 'success' });
+      // Agora mostre o botão para upload de documentos
+    } catch (err) {
+      toast({ title: 'Erro ao enviar dados', status: 'error' });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -192,182 +199,262 @@ export const Wallet = () => {
     }
   };
 
+  // Função para abrir modal de documentos após dados básicos
+  const openDocModal = () => setIsDocModalOpen(true);
+  const closeDocModal = () => setIsDocModalOpen(false);
+
+  // Manipula input de arquivos
+  const handleDocInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, files } = e.target;
+    if (files && files.length > 0) {
+      setDocForm(prev => ({ ...prev, [name]: files[0] }));
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setDocPreviews(prev => ({ ...prev, [name]: reader.result as string }));
+      };
+      reader.readAsDataURL(files[0]);
+    }
+  };
+
+  // Submit dos documentos
+  const handleDocSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      if (docForm.documento_frente) formData.append('documento_frente', docForm.documento_frente);
+      if (docForm.documento_verso) formData.append('documento_verso', docForm.documento_verso);
+      if (docForm.selfie_1) formData.append('selfie_1', docForm.selfie_1);
+      if (docForm.selfie_2) formData.append('selfie_2', docForm.selfie_2);
+      await apiClient.post('/api/users/kyc/documents', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      toast({ title: 'Documentos enviados!', status: 'success' });
+      closeDocModal();
+      // Atualize o status do KYC se desejar
+    } catch (err) {
+      toast({ title: 'Erro ao enviar documentos', status: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <Box p={8} textAlign="center">
         <Spinner size="xl" />
-        <Text mt={4}>Carregando dados da carteira...</Text>
+        <Text mt={4}>Loading wallet data...</Text>
       </Box>
     );
   }
 
   return (
     <Container maxW="container.xl" py={8}>
-      <Grid templateColumns={{ base: "1fr", lg: "repeat(3, 1fr)" }} gap={8}>
-        {/* My Account Card */}
-        <GridItem>
-          <Box p={6} borderWidth={1} borderRadius="xl" bg="white" color="black">
-            <VStack align="stretch" spacing={4}>
-              <Heading size="md">Minha Conta</Heading>
-              
-              <Box>
-                <Text fontWeight="bold">Status KYC</Text>
-                <Badge colorScheme={getKYCStatusColor(getKYCStatus())}>
-                  {getKYCStatus() === 'not_started' ? 'Não iniciado' : getKYCStatus()}
-                </Badge>
-              </Box>
-
-              <Box>
-                <Text fontWeight="bold">Número de Tokens</Text>
-                <Text>{tokens.length}</Text>
-              </Box>
-
-              <Button
-                colorScheme="blue"
-                onClick={handleStartKYC}
-                isDisabled={getKYCStatus() === 'approved'}
-              >
-                {getKYCStatus() === 'not_started' ? 'Iniciar KYC' : 'Verificar KYC'}
-              </Button>
+      <Heading size="xl" mb={8}>My Account</Heading>
+      <Flex gap={8} direction={{ base: 'column', lg: 'row' }}>
+        {/* Profile */}
+        <Card bg="rgba(255,255,255,0.05)" borderColor="bgGrid" borderWidth="1px" flex="1">
+          <CardHeader>
+            <Heading size="md" color="white">Profile</Heading>
+          </CardHeader>
+          <CardBody>
+            <VStack spacing={4} align="stretch">
+              <Flex align="center" gap={4}>
+                <Avatar size="xl" name={user?.name || user?.address || 'User'} />
+                <Box>
+                  <Text fontSize="lg" fontWeight="bold">{user?.name || 'User'}</Text>
+                  <Text color="text.dim">{user?.address}</Text>
+                </Box>
+              </Flex>
+              <Divider />
+              <Button variant="outline">Edit Profile</Button>
             </VStack>
-          </Box>
-        </GridItem>
+          </CardBody>
+        </Card>
 
-        {/* My Tokens Card */}
-        <GridItem>
-          <Box p={6} borderWidth={1} borderRadius="xl" bg="white" color="black">
-            <VStack align="stretch" spacing={4}>
-              <Heading size="md">Meus Tokens</Heading>
-              
-              <Text>Total de Tokens: {tokens.length}</Text>
+        {/* Investments */}
+        <Card bg="rgba(255,255,255,0.05)" borderColor="bgGrid" borderWidth="1px" flex="1">
+          <CardHeader>
+            <Heading size="md" color="white">My Investments</Heading>
+          </CardHeader>
+          <CardBody>
+            <VStack spacing={4} align="stretch">
+              <Flex justify="space-between" align="center">
+                <Text color="text.dim">Total Invested</Text>
+                <Text fontSize="xl" fontWeight="bold">${tokens.reduce((acc, t) => acc + (t.property?.currentValue || 0), 0).toLocaleString('en-US')}</Text>
+              </Flex>
+              <Flex justify="space-between" align="center">
+                <Text color="text.dim">Tokens Owned</Text>
+                <Text fontSize="xl" fontWeight="bold">{tokens.length}</Text>
+              </Flex>
+              <Divider />
+              <Button variant="outline" onClick={() => navigate('/marketplace')}>View History</Button>
+            </VStack>
+          </CardBody>
+        </Card>
+      </Flex>
 
-              <Button
-                colorScheme="blue"
-                onClick={() => navigate('/marketplace')}
-                isDisabled={getKYCStatus() !== 'approved'}
-              >
-                Comprar Novos Tokens
-              </Button>
+      {/* KYC Status */}
+      <Card bg="rgba(255,255,255,0.05)" borderColor="bgGrid" borderWidth="1px" mt={8}>
+        <CardHeader>
+          <Heading size="md" color="white">KYC Status</Heading>
+        </CardHeader>
+        <CardBody>
+          <VStack spacing={4} align="stretch">
+            <Flex justify="space-between" align="center">
+              <Text color="text.dim">Status:</Text>
+              <Badge colorScheme={getKYCStatusColor(getKYCStatus())}>
+                {getKYCStatus() === 'not_started' ? 'Pending' : getKYCStatus()}
+              </Badge>
+            </Flex>
+            {getKYCStatus() !== 'approved' && (
+              <Alert status="warning">
+                <AlertIcon />
+                <Box>
+                  <AlertTitle>KYC Pending</AlertTitle>
+                  <AlertDescription>
+                    Complete your registration to invest and create RWA tokens
+                  </AlertDescription>
+                </Box>
+              </Alert>
+            )}
+            <Button colorScheme="blue" onClick={handleStartKYC} isDisabled={getKYCStatus() === 'approved'}>
+              {getKYCStatus() === 'not_started' ? 'Start KYC' : 'Check KYC'}
+            </Button>
+          </VStack>
+        </CardBody>
+      </Card>
 
-              {tokens.length > 0 && (
-                <TableContainer>
-                  <Table size="sm">
-                    <Thead>
-                      <Tr>
-                        <Th>Token</Th>
-                        <Th>Propriedade</Th>
-                        <Th>Valor</Th>
+      {/* Tokens and Properties */}
+      <Flex gap={8} direction={{ base: 'column', lg: 'row' }} mt={8}>
+        {/* Tokens */}
+        <Card bg="rgba(255,255,255,0.05)" borderColor="bgGrid" borderWidth="1px" flex="1">
+          <CardHeader>
+            <Heading size="md" color="white">My Tokens</Heading>
+          </CardHeader>
+          <CardBody>
+            {tokens.length > 0 ? (
+              <TableContainer>
+                <Table size="sm">
+                  <Thead>
+                    <Tr>
+                      <Th>Token</Th>
+                      <Th>Property</Th>
+                      <Th>Value</Th>
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {tokens.map(token => (
+                      <Tr key={token.id}>
+                        <Td>{token.token_identifier}</Td>
+                        <Td>{token.property?.name || 'N/A'}</Td>
+                        <Td>${token.property?.currentValue || 0}</Td>
                       </Tr>
-                    </Thead>
-                    <Tbody>
-                      {tokens.map(token => (
-                        <Tr key={token.id}>
-                          <Td>{token.token_identifier}</Td>
-                          <Td>{token.property?.name || 'N/A'}</Td>
-                          <Td>${token.property?.currentValue || 0}</Td>
+                    ))}
+                  </Tbody>
+                </Table>
+              </TableContainer>
+            ) : (
+              <Text color="text.dim">No tokens found</Text>
+            )}
+          </CardBody>
+        </Card>
+
+        {/* Properties */}
+        <Card bg="rgba(255,255,255,0.05)" borderColor="bgGrid" borderWidth="1px" flex="1">
+          <CardHeader>
+            <Flex justify="space-between" align="center">
+              <Heading size="md" color="white">My Properties</Heading>
+              <Button
+                size="sm"
+                colorScheme="blue"
+                onClick={() => navigate('/assets/new')}
+              >
+                Add RWA
+              </Button>
+            </Flex>
+          </CardHeader>
+          <CardBody>
+            {properties.length > 0 ? (
+              <TableContainer>
+                <Table size="sm">
+                  <Thead>
+                    <Tr>
+                      <Th>Name</Th>
+                      <Th>Location</Th>
+                      <Th>Value</Th>
+                      <Th>Status</Th>
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {properties
+                      .slice((page - 1) * itemsPerPage, page * itemsPerPage)
+                      .map(property => (
+                        <Tr key={property.id}>
+                          <Td>{property.name}</Td>
+                          <Td>{property.location}</Td>
+                          <Td>${property.currentValue}</Td>
+                          <Td>
+                            <Badge
+                              colorScheme={
+                                property.status === 'active' ? 'green' :
+                                property.status === 'inactive' ? 'gray' : 'red'
+                              }
+                            >
+                              {property.status}
+                            </Badge>
+                          </Td>
                         </Tr>
                       ))}
-                    </Tbody>
-                  </Table>
-                </TableContainer>
-              )}
-            </VStack>
-          </Box>
-        </GridItem>
-
-        {/* My Properties Card */}
-        <GridItem>
-          <Box p={6} borderWidth={1} borderRadius="xl" bg="white" color="black">
-            <VStack align="stretch" spacing={4}>
-              <Flex justify="space-between" align="center">
-                <Heading size="md">Minhas Propriedades</Heading>
+                  </Tbody>
+                </Table>
+              </TableContainer>
+            ) : (
+              <Text color="text.dim">No properties found</Text>
+            )}
+            {totalPages > 1 && (
+              <HStack justify="center" mt={4}>
                 <Button
                   size="sm"
-                  colorScheme="blue"
-                  onClick={() => navigate('/assets/new')}
-                  isDisabled={getKYCStatus() !== 'approved'}
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  isDisabled={page === 1}
                 >
-                  Adicionar RWA
+                  Previous
                 </Button>
-              </Flex>
+                <Text>Page {page} of {totalPages}</Text>
+                <Button
+                  size="sm"
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  isDisabled={page === totalPages}
+                >
+                  Next
+                </Button>
+              </HStack>
+            )}
+          </CardBody>
+        </Card>
+      </Flex>
 
-              {properties.length > 0 ? (
-                <TableContainer>
-                  <Table size="sm">
-                    <Thead>
-                      <Tr>
-                        <Th>Nome</Th>
-                        <Th>Localização</Th>
-                        <Th>Valor</Th>
-                        <Th>Status</Th>
-                      </Tr>
-                    </Thead>
-                    <Tbody>
-                      {properties
-                        .slice((page - 1) * itemsPerPage, page * itemsPerPage)
-                        .map(property => (
-                          <Tr key={property.id}>
-                            <Td>{property.name}</Td>
-                            <Td>{property.location}</Td>
-                            <Td>${property.currentValue}</Td>
-                            <Td>
-                              <Badge
-                                colorScheme={
-                                  property.status === 'active' ? 'green' :
-                                  property.status === 'inactive' ? 'gray' : 'red'
-                                }
-                              >
-                                {property.status}
-                              </Badge>
-                            </Td>
-                          </Tr>
-                        ))}
-                    </Tbody>
-                  </Table>
-                </TableContainer>
-              ) : (
-                <Text>Nenhuma propriedade encontrada</Text>
-              )}
+      {/* Button to open document modal after basic data */}
+      <Button colorScheme="blue" mt={4} onClick={openDocModal}>
+        Upload Documents (KYC)
+      </Button>
 
-              {totalPages > 1 && (
-                <HStack justify="center" mt={4}>
-                  <Button
-                    size="sm"
-                    onClick={() => setPage(p => Math.max(1, p - 1))}
-                    isDisabled={page === 1}
-                  >
-                    Anterior
-                  </Button>
-                  <Text>Página {page} de {totalPages}</Text>
-                  <Button
-                    size="sm"
-                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                    isDisabled={page === totalPages}
-                  >
-                    Próxima
-                  </Button>
-                </HStack>
-              )}
-            </VStack>
-          </Box>
-        </GridItem>
-      </Grid>
-
-      {/* Modal de KYC Inicial */}
+      {/* KYC Initial Modal */}
       <Modal isOpen={isOpen} onClose={onClose}>
         <ModalOverlay />
         <ModalContent>
           <form onSubmit={handleKYCSubmit}>
-            <ModalHeader>Complete seu Cadastro</ModalHeader>
+            <ModalHeader>Complete your Registration</ModalHeader>
             <ModalCloseButton />
             <ModalBody>
               <VStack spacing={4}>
                 <FormControl isRequired>
-                  <FormLabel>Nome Completo</FormLabel>
+                  <FormLabel>Full Name</FormLabel>
                   <Input
                     value={formData.fullName}
                     onChange={(e) => setFormData(prev => ({ ...prev, fullName: e.target.value }))}
-                    placeholder="Digite seu nome completo"
+                    placeholder="Enter your full name"
                   />
                 </FormControl>
 
@@ -376,17 +463,68 @@ export const Wallet = () => {
                   <Input
                     value={formData.cpf}
                     onChange={(e) => setFormData(prev => ({ ...prev, cpf: e.target.value }))}
-                    placeholder="Digite seu CPF"
+                    placeholder="Enter your CPF"
                   />
                 </FormControl>
               </VStack>
             </ModalBody>
             <ModalFooter>
               <Button variant="ghost" mr={3} onClick={onClose}>
-                Cancelar
+                Cancel
               </Button>
               <Button type="submit" colorScheme="blue">
-                Salvar
+                Save
+              </Button>
+            </ModalFooter>
+          </form>
+        </ModalContent>
+      </Modal>
+
+      {/* Document upload modal */}
+      <Modal isOpen={isDocModalOpen} onClose={closeDocModal}>
+        <ModalOverlay />
+        <ModalContent>
+          <form onSubmit={handleDocSubmit}>
+            <ModalHeader>KYC Document Upload</ModalHeader>
+            <ModalCloseButton />
+            <ModalBody>
+              <VStack spacing={4}>
+                <FormControl isRequired>
+                  <FormLabel>Document (front)</FormLabel>
+                  <Input name="documento_frente" type="file" accept="image/*" onChange={handleDocInput} />
+                  {docPreviews.documento_frente && (
+                    <Image src={docPreviews.documento_frente} alt="Front" boxSize="60px" objectFit="cover" borderRadius="md" border="1px solid #444" />
+                  )}
+                </FormControl>
+                <FormControl isRequired>
+                  <FormLabel>Document (back)</FormLabel>
+                  <Input name="documento_verso" type="file" accept="image/*" onChange={handleDocInput} />
+                  {docPreviews.documento_verso && (
+                    <Image src={docPreviews.documento_verso} alt="Back" boxSize="60px" objectFit="cover" borderRadius="md" border="1px solid #444" />
+                  )}
+                </FormControl>
+                <FormControl isRequired>
+                  <FormLabel>Selfie holding document</FormLabel>
+                  <Input name="selfie_1" type="file" accept="image/*" onChange={handleDocInput} />
+                  {docPreviews.selfie_1 && (
+                    <Image src={docPreviews.selfie_1} alt="Selfie 1" boxSize="60px" objectFit="cover" borderRadius="md" border="1px solid #444" />
+                  )}
+                </FormControl>
+                <FormControl isRequired>
+                  <FormLabel>Additional selfie</FormLabel>
+                  <Input name="selfie_2" type="file" accept="image/*" onChange={handleDocInput} />
+                  {docPreviews.selfie_2 && (
+                    <Image src={docPreviews.selfie_2} alt="Selfie 2" boxSize="60px" objectFit="cover" borderRadius="md" border="1px solid #444" />
+                  )}
+                </FormControl>
+              </VStack>
+            </ModalBody>
+            <ModalFooter>
+              <Button variant="ghost" mr={3} onClick={closeDocModal}>
+                Cancel
+              </Button>
+              <Button type="submit" colorScheme="blue">
+                Send
               </Button>
             </ModalFooter>
           </form>

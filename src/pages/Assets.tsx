@@ -8,7 +8,6 @@ import { Property } from '../types/Property';
 import { imageService } from '../services/imageService';
 import { getImageCookie, setImageCookie } from '../utils/imageCookieCache';
 import { FALLBACK_IMAGES } from '../constants/images';
-import { Icon as ChakraIcon, IconProps } from '@chakra-ui/react';
 
 export const Assets = () => {
   const { user } = useAuth();
@@ -32,7 +31,7 @@ export const Assets = () => {
       const imagesObj: {[key: string]: string} = {};
       await Promise.all(data.map(async (property) => {
         try {
-          const images = await imageService.getByRWAId(Number(property.id || 0));
+          const images = await imageService.getByRWAId(property.id !== undefined ? Number(property.id) : 0);
           if (!isMounted.current) return;
           
           if (images.length > 0) {
@@ -103,16 +102,15 @@ export const Assets = () => {
       <Box mb={8}>
         <InputGroup>
           <InputLeftElement pointerEvents="none">
-            <ChakraIcon as={FaSearch as any} color="gray.300" />
+            <FaSearch color="gray.300" />
           </InputLeftElement>
           <Input 
-            placeholder="Search properties by name, location or description..." 
+            placeholder="Buscar ativo..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             bg="rgba(255,255,255,0.1)"
             border="1px solid"
             borderColor="bgGrid"
-            _placeholder={{ color: "text.dim" }}
           />
         </InputGroup>
       </Box>
@@ -121,10 +119,10 @@ export const Assets = () => {
         <Text>Showing {filteredProperties.length} properties</Text>
         
         <HStack spacing={4}>
-          <Button leftIcon={<ChakraIcon as={FaSort as any} />} variant="outline" size="sm">
+          <Button leftIcon={<FaSort />} variant="outline" size="sm">
             Sort
           </Button>
-          <Button leftIcon={<ChakraIcon as={FaFilter as any} />} variant="outline" size="sm">
+          <Button leftIcon={<FaFilter />} variant="outline" size="sm">
             Filter
           </Button>
         </HStack>
@@ -206,7 +204,7 @@ export const Assets = () => {
                 <Flex justify="space-between" align="center" wrap="wrap" gap={2}>
                   <VStack align="flex-start" spacing={1}>
                     <Text fontWeight="bold" fontSize="xl" color="accent.500">
-                      {formatCurrency(property.price || 0)}
+                      {formatCurrency(property.price ?? 0)}
                     </Text>
                     <Text fontSize="xs" color="text.dim">
                       {property.availableTokens || 0} of {property.totalTokens || 0} tokens available
@@ -219,7 +217,7 @@ export const Assets = () => {
                         as={RouterLink}
                         to={`/assets/${property.id}/edit`}
                         aria-label="Edit property"
-                        icon={<ChakraIcon as={FaEdit as any} />}
+                        icon={<FaEdit />}
                         size="sm"
                         colorScheme="orange"
                         variant="outline"

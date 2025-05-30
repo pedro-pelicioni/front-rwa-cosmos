@@ -27,7 +27,7 @@ export const tokenService = {
 
   async getByOwner(userId: number): Promise<RWANFTToken[]> {
     try {
-      const response = await apiClient.get<RWANFTToken[]>(`/api/rwa/tokens/owner/${userId}`);
+      const response = await apiClient.get<RWANFTToken[]>(`/api/rwa/nfts/owner/${userId}`);
       return response.data;
     } catch (error: any) {
       if (error.response?.status === 404) {

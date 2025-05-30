@@ -1,8 +1,7 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from 'axios';
 import { authService } from '../services/auth';
 
-const MAX_RETRIES = 3;
-const RETRY_DELAY = 1000;
+const TIMEOUT = 30000; // 30 segundos
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -11,8 +10,6 @@ const PUBLIC_ROUTES = [
   '/api/auth/nonce',
   '/api/auth/wallet-login',
   '/api/auth/register',
-  '/api/rwa',
-  '/api/rwa/',
   '/api/rwa/images',
   '/api/rwa/nfts',
   '/api/rwa/tokens',
@@ -27,24 +24,19 @@ const isPublicRoute = (url: string): boolean => {
   // Remove a base URL se presente e os parâmetros de query
   const path = url.replace(API_URL, '').split('?')[0];
   
-  return PUBLIC_ROUTES.some(route => {
-    // Converte o padrão da rota em uma expressão regular
-    const pattern = route
-      .replace(/\{.*?\}/g, '[^/]+') // Substitui {param} por qualquer caractere não-/
-      .replace(/\//g, '\\/'); // Escapa as barras
-    
-    const regex = new RegExp(`^${pattern}$`);
-    console.log('[API] Verificando rota pública:', { path, pattern, isMatch: regex.test(path) });
+  // Verificar se a rota é pública
+  const isPublicRoute = PUBLIC_ROUTES.some(pattern => {
+    const regex = new RegExp(pattern);
     return regex.test(path);
   });
-};
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  return isPublicRoute;
+};
 
 const createAxiosInstance = (): AxiosInstance => {
   const instance = axios.create({
     baseURL: API_URL,
-    timeout: 10000,
+    timeout: TIMEOUT,
   });
 
   instance.interceptors.request.use(
@@ -59,8 +51,13 @@ const createAxiosInstance = (): AxiosInstance => {
       // Verifica se a URL é pública antes de verificar o token
       const url = config.url || '';
       if (!isPublicRoute(url)) {
-        const token = await authService.getToken();
+        const token = authService.getToken();
         if (token) {
+          // Verifica se o token está expirado
+          if (authService.isTokenExpired(token)) {
+            console.log('[API] Token expirado');
+            throw new Error('Sessão expirada. Por favor, faça login novamente.');
+          }
           config.headers.Authorization = `Bearer ${token}`;
         } else {
           console.log('[API] Token não encontrado, redirecionando para login');
@@ -86,31 +83,18 @@ const createAxiosInstance = (): AxiosInstance => {
       return response;
     },
     async (error: AxiosError) => {
-      const config = error.config as AxiosRequestConfig & { _retry?: number };
+      const config = error.config as AxiosRequestConfig;
       
       if (!config) {
         console.error('[API] Erro na resposta da API:', error);
         return Promise.reject(error);
       }
 
-      config._retry = config._retry || 0;
-
-      // Se for erro 401 e não for rota pública, tenta renovar o token
+      // Se for erro 401 e não for rota pública, apenas lança o erro para o componente tratar
       if (error.response?.status === 401 && !isPublicRoute(config.url || '')) {
-        if (config._retry < MAX_RETRIES) {
-          config._retry++;
-          console.log(`[API] Tentativa ${config._retry} de ${MAX_RETRIES} para renovar token`);
-          
-          try {
-            await authService.refreshToken();
-            await sleep(RETRY_DELAY);
-            return instance(config);
-          } catch (refreshError) {
-            console.log('[API] Erro ao renovar token, fazendo logout');
-            authService.logout();
-            throw new Error('Sessão expirada. Por favor, faça login novamente.');
-          }
-        }
+        console.log('[API] Erro 401 recebido, repassando para o componente tratar');
+        // Não faz logout automático aqui!
+        throw new Error('Sessão expirada. Por favor, faça login novamente.');
       }
 
       // Se for erro 404, retorna array vazio para não quebrar a UI
