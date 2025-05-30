@@ -28,6 +28,7 @@ export function WalletConnectModal({ isOpen, onClose, handleConnect, isLoading }
               <img src={keplrIcon} alt="Keplr" style={{ marginRight: '8px', height: '24px' }} />
               Conectar Keplr (ATOM)
             </Button>
+<<<<<<< HEAD
             <Button
               variant="primary"
               size="lg"
@@ -46,6 +47,8 @@ export function WalletConnectModal({ isOpen, onClose, handleConnect, isLoading }
             >
               Conectar Coinbase Wallet
             </Button>
+=======
+>>>>>>> main
           </ButtonGroup>
         </ModalBody>
       </ModalContent>

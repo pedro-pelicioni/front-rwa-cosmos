@@ -879,6 +879,7 @@ const options = {
             500: { description: 'Erro ao verificar disponibilidade' }
           }
         }
+<<<<<<< HEAD
       },
       '/api/users/kyc/basic': {
         post: {
@@ -1060,6 +1061,8 @@ const options = {
             }
           }
         }
+=======
+>>>>>>> main
       }
     }
   },

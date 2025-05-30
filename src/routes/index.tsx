@@ -1,5 +1,9 @@
 import React from 'react';
+<<<<<<< HEAD
 import { Routes, Route, Navigate } from 'react-router-dom';
+=======
+import { Routes, Route } from 'react-router-dom';
+>>>>>>> main
 import { Home } from '../pages/Home';
 import { Login } from '../pages/Login';
 import { Register } from '../pages/Register';
@@ -9,6 +13,7 @@ import { NFTDetailsPage } from '../pages/NFTDetails';
 import { NFTMintForm } from '../components/NFTMintForm';
 import { NFTBurnForm } from '../components/NFTBurnForm';
 import { NFTTransferForm } from '../components/NFTTransferForm';
+<<<<<<< HEAD
 import { Layout } from '../components/Layout';
 import { Assets } from '../pages/Assets';
 import { LatamMap } from '../pages/LatamMap';
@@ -16,6 +21,10 @@ import { MyAccount } from '../pages/MyAccount';
 import { AssetDetails } from '../pages/AssetDetails';
 import { UserDashboard } from '../pages/UserDashboard';
 import { PaymentPage } from '../pages/PaymentPage';
+=======
+import { UserDashboard } from '../pages/UserDashboard';
+import { Layout } from '../components/Layout';
+>>>>>>> main
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -34,6 +43,7 @@ export const AppRoutes: React.FC = () => {
         <Route path="/nfts/burn" element={<NFTBurnForm />} />
         <Route path="/nfts/transfer" element={<NFTTransferForm />} />
         <Route path="/nfts/:id" element={<NFTDetailsPage />} />
+<<<<<<< HEAD
 
         {/* Novas rotas adicionais */}
         <Route path="/assets" element={<Assets />} />
@@ -42,6 +52,8 @@ export const AppRoutes: React.FC = () => {
         <Route path="/payment/:rwaId/:tokenId/:quantity/:pricePerToken" element={<PaymentPage />} />
         {/*<Route path="/dashboard" element={<Navigate to="/wallet" replace />} />
         <Route path="/my-account" element={<Navigate to="/wallet" replace />} />*/}
+=======
+>>>>>>> main
       </Routes>
     </Layout>
   );
