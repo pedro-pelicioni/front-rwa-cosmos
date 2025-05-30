@@ -44,15 +44,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         const signature = await keplr.signMessage(nonce);
         
-        const response = await authService.loginWithWallet({
+        const response = await authService.loginWithWallet(
           address,
-          signature: signature.signature,
-          pub_key: {
-            type: 'tendermint/PubKeySecp256k1',
-            value: signature.pub_key.value
+          {
+            signature: signature.signature,
+            pub_key: {
+              type: 'tendermint/PubKeySecp256k1',
+              value: signature.pub_key.value
+            }
           },
           nonce
-        });
+        );
         
         setUser(response.user);
         localStorage.setItem('auth_token', response.token);
