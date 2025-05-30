@@ -42,10 +42,10 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             Home
           </Button>
           <Button as={RouterLink} to="/assets" variant="ghost" color="white" leftIcon={<FaList />}>
-            Assets
+            Properties
           </Button>
           <Button as={RouterLink} to="/latammap" variant="ghost" color="white" leftIcon={<FaMap />}>
-            Mapa
+            Maps
           </Button>
         </Flex>
         <Flex gap={4}>
