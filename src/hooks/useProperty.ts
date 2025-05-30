@@ -96,18 +96,27 @@ export const useProperty = () => {
   
   // Property para RWA (para criar e atualizar)
   const propertyToRwa = (property: Partial<Property>): Partial<RWA> => {
-    const [city, country] = property.location?.split(',').map(s => s.trim()) || ['', ''];
+    console.log('[useProperty] Convertendo property para RWA:', property);
+    
+    // Garantir que as coordenadas geográficas sejam enviadas corretamente
+    const gpsCoordinates = property.gpsCoordinates || '';
+    const location = property.location || '';
+    
+    console.log('[useProperty] Coordenadas e localização:', { gpsCoordinates, location });
+
     return {
       name: property.name,
       description: property.description,
-      city: city,
-      country: country,
+      location: location, // Localização em formato texto (ex: "Mexico City, Mexico")
+      city: property.city,
+      country: property.country,
       currentValue: property.currentValue || property.price,
       totalTokens: property.totalTokens,
-      yearBuilt: property.metadata?.yearBuilt,
-      sizeM2: property.metadata?.squareMeters,
-      gpsCoordinates: property.metadata?.gpsCoordinates,
+      yearBuilt: property.yearBuilt || 0,
+      sizeM2: property.sizeM2 || 0,
+      gpsCoordinates: gpsCoordinates, // Coordenadas geográficas (ex: "-99.1332,19.4326")
       status: property.status || 'active',
+      geometry: property.geometry || {},
       metadata: {
         images: property.metadata?.images || [],
         documents: property.metadata?.documents || [],
@@ -231,8 +240,8 @@ export const useProperty = () => {
     setError(null);
     
     try {
-      const rwaData = propertyToRwa(property);
-      const rwa = await updateRWA(parseInt(id), rwaData);
+      const rwaData = propertyToRwa(property as Property);
+      const rwa = await updateRWA(parseInt(id), rwaData as Partial<RWA>);
       
       // Criar um objeto Property diretamente a partir da resposta da API
       // Reutiliza as imagens e amenidades do objeto property original para evitar erros 404

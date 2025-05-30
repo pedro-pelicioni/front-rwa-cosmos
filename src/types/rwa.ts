@@ -1,32 +1,24 @@
 export interface RWA {
-  id: number;
-  userId: number;
-  user_id?: number;
+  id?: number;
   name: string;
-  gpsCoordinates: string;
-  gps_coordinates?: string;
+  description: string;
+  location: string;
   city: string;
   country: string;
-  description?: string;
   currentValue: number;
-  current_value?: string | number;
   totalTokens: number;
-  total_tokens?: number;
-  yearBuilt?: number;
-  year_built?: number;
-  sizeM2?: number;
-  size_m2?: number;
-  status: 'active' | 'inactive' | 'sold' | 'pending';
-  geometry?: any; // GeoJSON type
-  createdAt: string;
-  created_at?: string;
-  updatedAt: string;
-  updated_at?: string;
-  images?: string[];
-  metadata?: {
-    images?: string[];
-    [key: string]: any;
+  yearBuilt: number;
+  sizeM2: number;
+  gpsCoordinates: string;
+  status: string;
+  geometry: any;
+  metadata: {
+    images: string[];
+    documents: string[];
+    amenities: string[];
   };
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface RWAImage {
@@ -74,4 +66,28 @@ export interface RWAOwnershipHistory {
   quantity: number;
   transfer_date: string;
   tx_hash: string;
+}
+
+export interface Property {
+  id?: number;
+  name: string;
+  description: string;
+  location: string;
+  city: string;
+  country: string;
+  price?: number;
+  currentValue?: number;
+  totalTokens: number;
+  yearBuilt: number;
+  sizeM2: number;
+  gpsCoordinates: string;
+  status?: string;
+  geometry?: any;
+  metadata?: {
+    images?: string[];
+    documents?: string[];
+    amenities?: string[];
+    yearBuilt?: number;
+    squareMeters?: number;
+  };
 } 
