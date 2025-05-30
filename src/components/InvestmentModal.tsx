@@ -21,17 +21,16 @@ import {
   Divider,
   useToast
 } from '@chakra-ui/react';
-import { RWA } from '../types/rwa';
+import { TokenListing } from '../services/marketplaceService';
 
 interface InvestmentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  asset: RWA;
-  availableTokens: number;
-  tokenId: number;
+  listing: TokenListing;
+  onSuccess?: () => void;
 }
 
-export const InvestmentModal = ({ isOpen, onClose, asset, availableTokens, tokenId }: InvestmentModalProps) => {
+export const InvestmentModal = ({ isOpen, onClose, listing, onSuccess }: InvestmentModalProps) => {
   const navigate = useNavigate();
   const toast = useToast();
   const [quantity, setQuantity] = useState(1);
@@ -41,13 +40,11 @@ export const InvestmentModal = ({ isOpen, onClose, asset, availableTokens, token
     try {
       setLoading(true);
       
-      // Calcular preço por token
-      const pricePerToken = asset.currentValue / asset.totalTokens;
-      
       // Navegar para a página de pagamento
-      navigate(`/payment/${asset.id}/${tokenId}/${quantity}/${pricePerToken}`);
+      navigate(`/payment/${listing.nftToken.rwa_id}/${listing.nft_token_id}/${quantity}/${listing.current_price}`);
       
       onClose();
+      onSuccess?.();
     } catch (err) {
       toast({
         title: 'Error',
@@ -69,20 +66,21 @@ export const InvestmentModal = ({ isOpen, onClose, asset, availableTokens, token
     }).format(amount);
   };
 
-  const totalAmount = (asset.currentValue / asset.totalTokens) * quantity;
+  const totalAmount = listing.current_price * quantity;
+  const property = listing.nftToken?.rwa;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
+    <Modal isOpen={isOpen} onClose={onClose} isCentered>
       <ModalOverlay />
-      <ModalContent>
-        <ModalHeader>Invest in {asset.name}</ModalHeader>
+      <ModalContent bg="var(--color-bg-primary)">
+        <ModalHeader>Invest in {property?.name || `Token #${listing.nft_token_id}`}</ModalHeader>
         <ModalCloseButton />
         <ModalBody>
           <FormControl mb={4}>
             <FormLabel>Number of Tokens</FormLabel>
             <NumberInput
               min={1}
-              max={availableTokens}
+              max={property?.available_tokens || 1}
               value={quantity}
               onChange={(value) => setQuantity(typeof value === 'string' ? parseInt(value, 10) : value)}
             >
@@ -98,7 +96,7 @@ export const InvestmentModal = ({ isOpen, onClose, asset, availableTokens, token
 
           <Flex justify="space-between" mb={2}>
             <Text>Price per Token</Text>
-            <Text>{formatCurrency(asset.currentValue / asset.totalTokens)}</Text>
+            <Text>{formatCurrency(listing.current_price)}</Text>
           </Flex>
 
           <Flex justify="space-between" fontWeight="bold">
@@ -108,7 +106,7 @@ export const InvestmentModal = ({ isOpen, onClose, asset, availableTokens, token
         </ModalBody>
 
         <ModalFooter>
-          <Button variant="ghost" mr={3} onClick={onClose}>
+          <Button variant="outline" mr={3} onClick={onClose}>
             Cancel
           </Button>
           <Button
@@ -117,7 +115,7 @@ export const InvestmentModal = ({ isOpen, onClose, asset, availableTokens, token
             isLoading={loading}
             loadingText="Processing..."
           >
-            Proceed to Payment
+            Confirm Investment
           </Button>
         </ModalFooter>
       </ModalContent>

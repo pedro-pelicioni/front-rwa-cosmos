@@ -1,63 +1,159 @@
-import React from 'react';
-import { Container, Heading, SimpleGrid, Box, Text } from '@chakra-ui/react';
-import { useProperty } from '../hooks/useProperty';
-import { Property } from '../types/Property';
+import React, { useState, useEffect } from 'react';
+import {
+  Box,
+  Container,
+  Heading,
+  SimpleGrid,
+  Center,
+  Spinner,
+  Text,
+  useToast,
+  Flex,
+  Button,
+  HStack,
+  useDisclosure,
+} from '@chakra-ui/react';
+import { marketplaceService, TokenListing } from '../services/marketplaceService';
+import { MarketplaceFilters } from '../components/MarketplaceFilters';
+import { MarketplaceCard } from '../components/MarketplaceCard';
+import { EmptyState } from '../components/EmptyState';
+import { InvestmentModal } from '../components/InvestmentModal';
 
-export const Marketplace: React.FC = () => {
-  const { getAll, loading, error } = useProperty();
-  const [properties, setProperties] = React.useState<Property[]>([]);
+interface MarketplaceResponse {
+  listings: TokenListing[];
+  pagination?: {
+    total: number;
+    page: number;
+    limit: number;
+    pages: number;
+  };
+}
 
-  React.useEffect(() => {
-    const loadProperties = async () => {
-      try {
-        const data = await getAll();
-        setProperties(data);
-      } catch (error) {
-        console.error('Erro ao carregar propriedades:', error);
-      }
-    };
+export function MarketplacePage() {
+  const [filters, setFilters] = useState<any>({});
+  const [listings, setListings] = useState<TokenListing[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedListing, setSelectedListing] = useState<TokenListing | null>(null);
+  const toast = useToast();
+  const { isOpen, onOpen, onClose } = useDisclosure();
 
-    loadProperties();
-  }, [getAll]);
+  useEffect(() => {
+    loadListings();
+  }, [filters]);
 
-  if (loading) {
-    return (
-      <Container maxW="container.xl" py={10}>
-        <Text>Carregando...</Text>
-      </Container>
-    );
-  }
+  const loadListings = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const results = await marketplaceService.searchListings(filters) as TokenListing[] | MarketplaceResponse;
+      setListings(Array.isArray(results) ? results : results.listings || []);
+    } catch (err) {
+      setError('Error loading properties');
+      toast({
+        title: 'Error loading properties',
+        description: 'Please try again later',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  if (error) {
-    return (
-      <Container maxW="container.xl" py={10}>
-        <Text color="red.500">Erro ao carregar propriedades: {error}</Text>
-      </Container>
-    );
-  }
+  const handleBuy = (listing: TokenListing) => {
+    setSelectedListing(listing);
+    onOpen();
+  };
+
+  const handleEdit = (listing: TokenListing) => {
+    toast({
+      title: 'Edit functionality coming soon',
+      status: 'info',
+      duration: 3000,
+    });
+  };
+
+  const handleFavorite = (listing: TokenListing) => {
+    toast({
+      title: 'Added to favorites',
+      status: 'success',
+      duration: 3000,
+    });
+  };
+
+  const handleShare = (listing: TokenListing) => {
+    if (navigator.share) {
+      navigator.share({
+        title: listing.nftToken?.rwa?.name || `Token #${listing.nft_token_id}`,
+        text: `Check out this property: ${listing.nftToken?.rwa?.name || `Token #${listing.nft_token_id}`}`,
+        url: window.location.href,
+      });
+    } else {
+      toast({
+        title: 'Share link copied to clipboard',
+        status: 'success',
+        duration: 3000,
+      });
+    }
+  };
 
   return (
     <Container maxW="container.xl" py={10}>
-      <Heading mb={8}>Marketplace</Heading>
-      <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={8}>
-        {properties.map((property: any) => (
-          <Box
-            key={property.id}
-            borderWidth="1px"
-            borderRadius="lg"
-            overflow="hidden"
-            p={4}
-          >
-            <Heading size="md" mb={2}>
-              {property.name}
-            </Heading>
-            <Text>{property.description}</Text>
-            <Text mt={2} fontWeight="bold">
-              {property.price} tokens
-            </Text>
-          </Box>
-        ))}
-      </SimpleGrid>
+      <Flex justify="space-between" align="center" mb={8}>
+        <Heading>Real Estate Marketplace</Heading>
+        <Button colorScheme="blue" onClick={() => loadListings()}>
+          Refresh
+        </Button>
+      </Flex>
+
+      <MarketplaceFilters onChange={setFilters} />
+
+      {loading ? (
+        <Center py={20}>
+          <Spinner size="xl" color="blue.500" thickness="4px" />
+        </Center>
+      ) : error ? (
+        <Center py={20}>
+          <Text color="red.500" fontSize="lg">{error}</Text>
+        </Center>
+      ) : listings.length === 0 ? (
+        <EmptyState
+          title="No properties found"
+          description="Try adjusting your filters or check back later for new listings"
+        />
+      ) : (
+        <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={8} mt={8}>
+          {listings.map(listing => (
+            <MarketplaceCard
+              key={listing.id}
+              listing={listing}
+              onBuy={() => handleBuy(listing)}
+              onEdit={() => handleEdit(listing)}
+              onFavorite={() => handleFavorite(listing)}
+              onShare={() => handleShare(listing)}
+            />
+          ))}
+        </SimpleGrid>
+      )}
+
+      {isOpen && (
+        <InvestmentModal
+          isOpen={isOpen}
+          onClose={onClose}
+          listing={selectedListing as TokenListing}
+          onSuccess={() => {
+            onClose();
+            loadListings();
+            toast({
+              title: 'Investment successful',
+              status: 'success',
+              duration: 5000,
+            });
+          }}
+        />
+      )}
     </Container>
   );
-}; 
+} 

@@ -12,7 +12,26 @@ export interface TokenListing {
   available_until: string;
   created_at: string;
   updated_at: string;
-  nftToken: any;
+  nftToken: {
+    id: number;
+    rwa_id: number;
+    token_identifier: string;
+    owner_user_id: number;
+    metadata_uri: string;
+    created_at: string;
+    updated_at: string;
+    rwa?: {
+      id: number;
+      name: string;
+      location: string;
+      description: string;
+      current_value: number;
+      total_tokens: number;
+      available_tokens: number;
+      status: string;
+      images?: string[];
+    };
+  };
   seller: any;
   priceHistory: TokenPriceHistory[];
 }
@@ -30,7 +49,7 @@ export interface TokenPriceHistory {
 export const marketplaceService = {
   // Listar todos os tokens disponíveis
   getListings: async (): Promise<TokenListing[]> => {
-    const response = await apiClient.get('/marketplace/listings');
+    const response = await apiClient.get('/api/marketplace/listings');
     return response.data;
   },
 
@@ -42,19 +61,19 @@ export const marketplaceService = {
     sort_by?: 'created_at' | 'current_price';
     sort_order?: 'asc' | 'desc';
   }): Promise<TokenListing[]> => {
-    const response = await apiClient.get('/marketplace/listings/search', { params: filters });
+    const response = await apiClient.get('/api/marketplace/listings/search', { params: filters });
     return response.data;
   },
 
   // Listar tokens do usuário
   getMyListings: async (): Promise<TokenListing[]> => {
-    const response = await apiClient.get('/marketplace/my-listings');
+    const response = await apiClient.get('/api/marketplace/my-listings');
     return response.data;
   },
 
   // Obter detalhes de um listing
   getListingDetails: async (listingId: number): Promise<TokenListing> => {
-    const response = await apiClient.get(`/marketplace/listings/${listingId}`);
+    const response = await apiClient.get(`/api/marketplace/listings/${listingId}`);
     return response.data;
   },
 
@@ -67,7 +86,7 @@ export const marketplaceService = {
     chain_transaction_metadata?: any;
     available_until?: string;
   }): Promise<TokenListing> => {
-    const response = await apiClient.post('/marketplace/listings', data);
+    const response = await apiClient.post('/api/marketplace/listings', data);
     return response.data;
   },
 
@@ -76,13 +95,13 @@ export const marketplaceService = {
     new_price: number;
     change_reason?: string;
   }): Promise<TokenListing> => {
-    const response = await apiClient.patch(`/marketplace/listings/${listingId}/price`, data);
+    const response = await apiClient.patch(`/api/marketplace/listings/${listingId}/price`, data);
     return response.data;
   },
 
   // Cancelar um listing
   cancelListing: async (listingId: number): Promise<void> => {
-    await apiClient.patch(`/marketplace/listings/${listingId}/cancel`);
+    await apiClient.patch(`/api/marketplace/listings/${listingId}/cancel`);
   },
 
   // Atualizar status de um listing
@@ -90,13 +109,13 @@ export const marketplaceService = {
     status: 'active' | 'sold' | 'cancelled' | 'expired';
     transaction_metadata?: any;
   }): Promise<TokenListing> => {
-    const response = await apiClient.patch(`/marketplace/listings/${listingId}/status`, data);
+    const response = await apiClient.patch(`/api/marketplace/listings/${listingId}/status`, data);
     return response.data;
   },
 
   // Obter histórico de preços
   getPriceHistory: async (listingId: number): Promise<TokenPriceHistory[]> => {
-    const response = await apiClient.get(`/marketplace/listings/${listingId}/price-history`);
+    const response = await apiClient.get(`/api/marketplace/listings/${listingId}/price-history`);
     return response.data;
   },
 
@@ -105,7 +124,7 @@ export const marketplaceService = {
     available: boolean;
     listing?: TokenListing;
   }> => {
-    const response = await apiClient.get(`/marketplace/tokens/${nftTokenId}/availability`);
+    const response = await apiClient.get(`/api/marketplace/tokens/${nftTokenId}/availability`);
     return response.data;
   },
 
