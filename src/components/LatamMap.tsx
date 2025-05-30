@@ -429,25 +429,33 @@ export function LatamMap({
         const tokensObj: {[key: number]: number} = {};
         await Promise.all(data.map(async (asset) => {
           try {
-            const images = await imageService.getByRWAId(asset.id);
-            imagesObj[asset.id] = images;
-          } catch (err) {
-            imagesObj[asset.id] = [];
+            if (asset.id) {
+              const images = await imageService.getByRWAId(asset.id);
+              imagesObj[asset.id] = images;
+            }
+          } catch (e) {
+            if (asset.id) {
+              imagesObj[asset.id] = [];
+            }
           }
+
           try {
-            const tokens = await tokenService.getByRWAId(asset.id);
-            tokensObj[asset.id] = Array.isArray(tokens) ? tokens.length : 0;
-          } catch (err) {
-            tokensObj[asset.id] = 0;
+            if (asset.id) {
+              const tokens = await tokenService.getByRWAId(asset.id);
+              tokensObj[asset.id] = Array.isArray(tokens) ? tokens.length : 0;
+            }
+          } catch (e) {
+            if (asset.id) {
+              tokensObj[asset.id] = 0;
+            }
           }
+
+          return {
+            ...asset,
+            availableTokens: asset.id ? (tokensObj[asset.id] ?? (asset.totalTokens ?? asset.total_tokens ?? 0)) : 0,
+          };
         }));
-        // Mapeia os assets para incluir availableTokens
-        const mapped = data.map(asset => ({
-          ...asset,
-          totalTokens: asset.totalTokens ?? asset.total_tokens ?? 0,
-          availableTokens: tokensObj[asset.id] ?? (asset.totalTokens ?? asset.total_tokens ?? 0),
-        }));
-        setAssets(mapped);
+        setAssets(data);
         setAssetImages(imagesObj);
       } catch (err) {
         setAssets([]);
@@ -569,7 +577,6 @@ export function LatamMap({
           bg="rgba(255,255,255,0.08)"
           color="white"
           borderColor="#2a4365"
-          _placeholder={{ color: 'gray.300' }}
           _hover={{ borderColor: 'accent.500' }}
           maxW="200px"
         >
@@ -585,7 +592,7 @@ export function LatamMap({
             onChange={(_, v) => setMinPrice(Number.isNaN(v) ? undefined : v)}
             min={0}
             max={maxPrice ?? undefined}
-            _placeholder="Min"
+            placeholder="Min"
             w="70px"
             bg="rgba(255,255,255,0.08)"
             color="white"
@@ -599,7 +606,7 @@ export function LatamMap({
             value={maxPrice ?? ''}
             onChange={(_, v) => setMaxPrice(Number.isNaN(v) ? undefined : v)}
             min={minPrice ?? 0}
-            _placeholder="Max"
+            placeholder="Max"
             w="70px"
             bg="rgba(255,255,255,0.08)"
             color="white"
@@ -641,8 +648,8 @@ export function LatamMap({
               : [null, null];
             if (!lat || !lng) return null;
 
-            const images = assetImages[asset.id] || [];
-            const imageUrls = images.map(img => img.image_data || img.file_path || img.cid_link).filter(Boolean);
+            const assetImagesList = asset.id ? (assetImages[asset.id] || []) : [];
+            const imageUrls = assetImagesList.map((img: any) => img.image_data || img.file_path || img.cid_link).filter(Boolean);
 
             return (
               <Marker

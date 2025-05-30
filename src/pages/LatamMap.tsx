@@ -152,20 +152,16 @@ export const LatamMap: React.FC = () => {
         const imagesObj: {[key: string]: string[]} = {};
         const imagePromises = data.map(async (property) => {
           try {
-            const images = await imageService.getByRWAId(property.id);
-            const urls = images.map(img => {
-              const cacheKey = `rwa_image_${property.id}_${img.id}`;
-              let url = getImageCookie(cacheKey);
-              if (!url) {
-                url = img.image_data || img.file_path || img.cid_link || '';
-                setImageCookie(cacheKey, url);
-              }
-              return url;
-            }).filter(Boolean);
-            imagesObj[property.id] = urls;
-          } catch (err) {
-            console.warn(`[LatamMap] Erro ao carregar imagens do imóvel ${property.id}:`, err);
-            imagesObj[property.id] = [];
+            // Buscar imagens do imóvel
+            if (property.id) {
+              const images = await imageService.getByRWAId(property.id);
+              const urls = images.map(img => img.image_data || img.file_path || img.cid_link).filter(Boolean);
+              imagesObj[property.id] = urls;
+            }
+          } catch (e) {
+            if (property.id) {
+              imagesObj[property.id] = [];
+            }
           }
         });
 
@@ -275,7 +271,6 @@ export const LatamMap: React.FC = () => {
                 bg="rgba(255,255,255,0.08)"
                 color="white"
                 borderColor="bgGrid"
-                _placeholder={{ color: 'gray.300' }}
                 _hover={{ borderColor: 'accent.500' }}
                 maxW="200px"
               >
