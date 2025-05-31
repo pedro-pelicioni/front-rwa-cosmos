@@ -12,17 +12,17 @@ export const Register: React.FC = () => {
       await connect('keplr');
       navigate('/wallet');
     } catch (error) {
-      console.error('Erro ao registrar com Keplr:', error);
+      console.error('Error registering with Keplr:', error);
     }
   };
 
   return (
     <Container maxW="container.sm" py={10}>
       <VStack spacing={8}>
-        <Heading>Registro</Heading>
-        <Text>Conecte sua carteira para criar uma conta</Text>
+        <Heading>Register</Heading>
+        <Text>Connect your wallet to create an account</Text>
         <Button colorScheme="blue" onClick={handleKeplrRegister}>
-          Registrar com Keplr
+          Register with Keplr
         </Button>
       </VStack>
     </Container>

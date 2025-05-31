@@ -148,7 +148,7 @@ export const Wallet = () => {
         setTotalPages(Math.ceil((propertiesResponse.data?.length || 0) / itemsPerPage));
       }
     } catch (error: any) {
-      console.error('Erro ao buscar dados:', error);
+      console.error('Error fetching data:', error);
       if (error.response?.status === 401) {
         navigate('/login');
       }

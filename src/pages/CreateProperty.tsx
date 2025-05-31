@@ -201,10 +201,10 @@ export const CreateProperty = () => {
         console.log('[CreateProperty] Formulário atualizado com dados aleatórios');
       })
       .catch(error => {
-        console.error('[CreateProperty] Erro ao carregar dados aleatórios:', error);
+        console.error('[CreateProperty] Error loading random data:', error);
         toast({
-          title: "Erro",
-          description: "Não foi possível carregar dados aleatórios. Verifique se o arquivo random-rwa-data.json está na pasta public.",
+          title: "Error",
+          description: "Could not load random data. Please check if the random-rwa-data.json file is in the public folder.",
           status: "error",
           duration: 5000,
           isClosable: true,
@@ -259,10 +259,10 @@ export const CreateProperty = () => {
     if (hasErrors) {
       console.log('[CreateProperty] Erros de validação encontrados:', newFieldErrors);
       setFieldErrors(newFieldErrors);
-      setFormError("Preencha todos os campos obrigatórios");
+      setFormError("Please fill in all required fields");
       toast({
-        title: "Campos incompletos",
-        description: "Preencha todos os campos obrigatórios",
+        title: "Incomplete Fields",
+        description: "Please fill in all required fields",
         status: "error",
         duration: 3000,
         isClosable: true
@@ -299,13 +299,13 @@ export const CreateProperty = () => {
       
       // Validação adicional para campos obrigatórios
       if (!formData.city || !formData.country) {
-        console.log('[CreateProperty] Erro: Cidade ou país ausentes');
-        throw new Error('Cidade e país são obrigatórios');
+        console.log('[CreateProperty] Error: City or country missing');
+        throw new Error('City and country are required');
       }
       
       if (!formData.price || isNaN(parseFloat(formData.price))) {
-        console.log('[CreateProperty] Erro: Preço inválido');
-        throw new Error('Valor da propriedade é obrigatório e deve ser um número válido');
+        console.log('[CreateProperty] Error: Invalid price');
+        throw new Error('Property value is required and must be a valid number');
       }
       
       console.log('[CreateProperty] Payload antes do envio:', JSON.stringify(payload, null, 2));
@@ -329,8 +329,8 @@ export const CreateProperty = () => {
       console.log('[CreateProperty] Resposta do backend:', property);
 
       toast({
-        title: "Propriedade Criada",
-        description: `Propriedade "${formData.name}" foi criada com sucesso`,
+        title: "Property Created",
+        description: `Property "${formData.name}" was created successfully`,
         status: "success",
         duration: 5000,
         isClosable: true
@@ -363,17 +363,17 @@ export const CreateProperty = () => {
       } else if (error) {
         errorMessage = error;
       } else {
-        errorMessage = "Ocorreu um erro ao criar a propriedade";
+        errorMessage = "An error occurred while creating the property";
       }
       
       const newFieldErrors: {[key: string]: boolean} = {};
       const errorLower = errorMessage.toLowerCase();
       
-      if (errorLower.includes('nome') || errorLower.includes('name')) newFieldErrors.name = true;
-      if (errorLower.includes('cidade') || errorLower.includes('city')) newFieldErrors.city = true;
-      if (errorLower.includes('país') || errorLower.includes('country')) newFieldErrors.country = true;
-      if (errorLower.includes('coordenadas') || errorLower.includes('gps')) newFieldErrors.gpsCoordinates = true;
-      if (errorLower.includes('preço') || errorLower.includes('valor') || errorLower.includes('price')) newFieldErrors.price = true;
+      if (errorLower.includes('name')) newFieldErrors.name = true;
+      if (errorLower.includes('city')) newFieldErrors.city = true;
+      if (errorLower.includes('country')) newFieldErrors.country = true;
+      if (errorLower.includes('coordinates') || errorLower.includes('gps')) newFieldErrors.gpsCoordinates = true;
+      if (errorLower.includes('price') || errorLower.includes('value')) newFieldErrors.price = true;
       if (errorLower.includes('tokens')) newFieldErrors.totalTokens = true;
       
       console.log('[CreateProperty] Campos com erro:', newFieldErrors);
@@ -381,7 +381,7 @@ export const CreateProperty = () => {
       setFieldErrors(newFieldErrors);
       setFormError(errorMessage);
       toast({
-        title: "Erro",
+        title: "Error",
         description: errorMessage,
         status: "error",
         duration: 5000,
@@ -423,7 +423,7 @@ export const CreateProperty = () => {
             variant="outline"
             colorScheme="blue"
           >
-            Preencher Aleatoriamente
+            Fill Randomly
           </Button>
         </HStack>
         
@@ -441,12 +441,12 @@ export const CreateProperty = () => {
         
         <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
           <FormControl isRequired isInvalid={!!fieldErrors.city}>
-            <FormLabel>Cidade</FormLabel>
+            <FormLabel>City</FormLabel>
             <Input 
               name="city"
               value={formData.city}
               onChange={handleInputChange}
-              placeholder="Ex: São Paulo"
+              placeholder="Ex: New York"
               bg="rgba(255,255,255,0.05)"
               border="1px solid"
               borderColor={fieldErrors.city ? "red.500" : "bgGrid"}
@@ -454,12 +454,12 @@ export const CreateProperty = () => {
           </FormControl>
           
           <FormControl isRequired isInvalid={!!fieldErrors.country}>
-            <FormLabel>País</FormLabel>
+            <FormLabel>Country</FormLabel>
             <Input 
               name="country"
               value={formData.country}
               onChange={handleInputChange}
-              placeholder="Ex: Brasil"
+              placeholder="Ex: United States"
               bg="rgba(255,255,255,0.05)"
               border="1px solid"
               borderColor={fieldErrors.country ? "red.500" : "bgGrid"}

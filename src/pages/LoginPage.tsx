@@ -23,10 +23,10 @@ const LoginPage = () => {
       <Box bg={bg} p={10} borderRadius="xl" boxShadow="2xl" minW="340px" textAlign="center">
         <VStack spacing={6}>
           <Avatar size="2xl" icon={<svg width="48" height="48" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/></svg>} />
-          <Heading size="lg" color="blue.700">Você não está logado</Heading>
-          <Text color="gray.600">Para acessar esta funcionalidade, conecte sua carteira.</Text>
+          <Heading size="lg" color="blue.700">You are not logged in</Heading>
+          <Text color="gray.600">To access this feature, connect your wallet.</Text>
           <Button colorScheme="blue" size="lg" onClick={handleLogin} fontWeight="bold" px={8} py={6} borderRadius="md">
-            Conectar carteira
+            Connect wallet
           </Button>
         </VStack>
       </Box>

@@ -13,7 +13,7 @@ export function WalletConnectModal({ isOpen, onClose, handleConnect, isLoading }
     <Modal isOpen={isOpen} onClose={onClose} isCentered>
       <ModalOverlay />
       <ModalContent bg="primary.500" borderColor="bgGrid" borderWidth="1px">
-        <ModalHeader color="text.light">Escolha sua Carteira</ModalHeader>
+        <ModalHeader color="text.light">Choose your Wallet</ModalHeader>
         <ModalCloseButton color="text.light" />
         <ModalBody pb={6}>
           <ButtonGroup spacing={4} display="flex" flexDirection="column">
@@ -23,10 +23,10 @@ export function WalletConnectModal({ isOpen, onClose, handleConnect, isLoading }
               onClick={async () => { await handleConnect('keplr'); onClose(); }}
               mb={4}
               isLoading={isLoading}
-              loadingText="Conectando..."
+              loadingText="Connecting..."
             >
               <img src={keplrIcon} alt="Keplr" style={{ marginRight: '8px', height: '24px' }} />
-              Conectar Keplr (ATOM)
+              Connect Keplr (ATOM)
             </Button>
           </ButtonGroup>
         </ModalBody>

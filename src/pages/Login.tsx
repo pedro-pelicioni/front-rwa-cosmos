@@ -20,9 +20,9 @@ export const Login: React.FC = () => {
     <Container maxW="container.sm" py={10}>
       <VStack spacing={8}>
         <Heading>Login</Heading>
-        <Text>Conecte sua carteira para continuar</Text>
+        <Text>Connect your wallet to continue</Text>
         <Button colorScheme="blue" onClick={handleKeplrLogin}>
-          Conectar com Keplr
+          Connect with Keplr
         </Button>
       </VStack>
     </Container>

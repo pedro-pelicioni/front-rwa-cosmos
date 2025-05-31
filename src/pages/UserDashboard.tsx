@@ -138,12 +138,12 @@ export const UserDashboard = () => {
         p.userId === user.id ||
         (p.owner && p.owner.id === user.id)
       );
-      console.log('[UserDashboard] Propriedades após filtro:', userProperties);
+      console.log('[UserDashboard] Properties after filter:', userProperties);
       setProperties(userProperties);
       setTotalPages(Math.ceil((userProperties.length || 0) / itemsPerPage));
       console.log('[UserDashboard] setProperties chamado com:', userProperties);
     } catch (error: any) {
-      console.error('Erro ao buscar dados:', error);
+      console.error('Error fetching data:', error);
       if (error.response?.status === 401) {
         navigate('/login');
       }
@@ -305,7 +305,7 @@ export const UserDashboard = () => {
   };
 
   // LOG: propriedades antes do render
-  console.log('[UserDashboard] Propriedades para renderizar:', properties);
+  console.log('[UserDashboard] Properties to render:', properties);
 
   if (kycData?.status === 'unauthorized') {
     return (

@@ -356,7 +356,7 @@ export const AssetDetails = () => {
     return (
       <Box p={8} textAlign="center">
         <Spinner size="xl" color="accent.500" />
-        <Text mt={4}>Carregando detalhes do imóvel...</Text>
+        <Text mt={4}>Loading property details...</Text>
       </Box>
     );
   }

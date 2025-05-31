@@ -127,7 +127,7 @@ export const KYC = () => {
       });
 
       toast({
-        title: 'Documento enviado com sucesso!',
+        title: 'Document sent successfully!',
         status: 'success',
         duration: 3000
       });
@@ -135,8 +135,8 @@ export const KYC = () => {
       fetchKYCData();
     } catch (error) {
       toast({
-        title: 'Erro ao enviar documento',
-        description: 'Tente novamente mais tarde',
+        title: 'Error sending document',
+        description: 'Please try again later',
         status: 'error',
         duration: 3000
       });
@@ -147,7 +147,7 @@ export const KYC = () => {
     return (
       <Box p={8} textAlign="center">
         <Spinner size="xl" />
-        <Text mt={4}>Carregando dados do KYC...</Text>
+        <Text mt={4}>Loading KYC data...</Text>
       </Box>
     );
   }
@@ -156,9 +156,9 @@ export const KYC = () => {
     <Container maxW="container.xl" py={8} bg="primary.500" color="text.light">
       <VStack spacing={8} align="stretch">
         <Box>
-          <Heading size="lg" mb={4}>Verificação KYC</Heading>
+          <Heading size="lg" mb={4}>KYC Verification</Heading>
           <Text color="text.dim">
-            Complete seu cadastro para poder investir e criar tokens RWA
+            Complete your registration to invest and create RWA tokens
           </Text>
         </Box>
 
@@ -166,9 +166,9 @@ export const KYC = () => {
           <Alert status="error">
             <AlertIcon />
             <Box>
-              <AlertTitle>Sua verificação foi rejeitada</AlertTitle>
+              <AlertTitle>Your verification was rejected</AlertTitle>
               <AlertDescription>
-                Por favor, verifique os documentos e tente novamente
+                Please check your documents and try again
               </AlertDescription>
             </Box>
           </Alert>
@@ -176,8 +176,8 @@ export const KYC = () => {
 
         <Tabs>
           <TabList>
-            <Tab>Dados Pessoais</Tab>
-            <Tab>Documentos</Tab>
+            <Tab>Personal Data</Tab>
+            <Tab>Documents</Tab>
             <Tab>Status</Tab>
           </TabList>
 
@@ -186,11 +186,11 @@ export const KYC = () => {
               <form onSubmit={handleSubmit}>
                 <VStack spacing={4}>
                   <FormControl isRequired>
-                    <FormLabel>Nome Completo</FormLabel>
+                    <FormLabel>Full Name</FormLabel>
                     <Input
                       value={formData.fullName}
                       onChange={(e) => setFormData(prev => ({ ...prev, fullName: e.target.value }))}
-                      placeholder="Digite seu nome completo"
+                      placeholder="Enter your full name"
                     />
                   </FormControl>
 
@@ -199,7 +199,7 @@ export const KYC = () => {
                     <Input
                       value={formData.cpf}
                       onChange={(e) => setFormData(prev => ({ ...prev, cpf: e.target.value }))}
-                      placeholder="Digite seu CPF"
+                      placeholder="Enter your CPF"
                     />
                   </FormControl>
 
@@ -209,7 +209,7 @@ export const KYC = () => {
                     isLoading={saving}
                     width="full"
                   >
-                    Salvar Dados
+                    Save Data
                   </Button>
                 </VStack>
               </form>
@@ -218,7 +218,7 @@ export const KYC = () => {
             <TabPanel>
               <VStack spacing={6}>
                 <Box width="full">
-                  <Text mb={2}>RG ou CNH (Frente)</Text>
+                  <Text mb={2}>RG or CNH (Front)</Text>
                   <Input
                     type="file"
                     accept="image/*"
@@ -230,7 +230,7 @@ export const KYC = () => {
                 </Box>
 
                 <Box width="full">
-                  <Text mb={2}>RG ou CNH (Verso)</Text>
+                  <Text mb={2}>RG or CNH (Back)</Text>
                   <Input
                     type="file"
                     accept="image/*"
@@ -242,7 +242,7 @@ export const KYC = () => {
                 </Box>
 
                 <Box width="full">
-                  <Text mb={2}>Comprovante de Residência</Text>
+                  <Text mb={2}>Proof of Residence</Text>
                   <Input
                     type="file"
                     accept="image/*,.pdf"
@@ -291,7 +291,7 @@ export const KYC = () => {
             <TabPanel>
               <VStack spacing={4} align="stretch">
                 <Box p={4} borderWidth={1} borderRadius="md">
-                  <Text fontWeight="bold">Status da Verificação</Text>
+                  <Text fontWeight="bold">Verification Status</Text>
                   <Badge
                     colorScheme={
                       kycData?.status === 'approved' ? 'green' :
@@ -300,7 +300,7 @@ export const KYC = () => {
                     }
                     mt={2}
                   >
-                    {kycData?.status || 'Não iniciado'}
+                    {kycData?.status || 'Not started'}
                   </Badge>
                 </Box>
 
@@ -308,9 +308,9 @@ export const KYC = () => {
                   <Alert status="info">
                     <AlertIcon />
                     <Box>
-                      <AlertTitle>Verificação em andamento</AlertTitle>
+                      <AlertTitle>Verification in progress</AlertTitle>
                       <AlertDescription>
-                        Seus documentos estão sendo analisados. Você receberá uma notificação quando a verificação for concluída.
+                        Your documents are being analyzed. You will receive a notification when the verification is complete.
                       </AlertDescription>
                     </Box>
                   </Alert>
@@ -320,9 +320,9 @@ export const KYC = () => {
                   <Alert status="success">
                     <AlertIcon />
                     <Box>
-                      <AlertTitle>Verificação aprovada!</AlertTitle>
+                      <AlertTitle>Verification approved!</AlertTitle>
                       <AlertDescription>
-                        Você já pode investir e criar tokens RWA.
+                        You can now invest and create RWA tokens.
                       </AlertDescription>
                     </Box>
                   </Alert>

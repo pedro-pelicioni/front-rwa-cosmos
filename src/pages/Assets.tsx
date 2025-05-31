@@ -80,6 +80,28 @@ export const Assets = () => {
     }).format(amount);
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-lg">Loading assets...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <p className="text-red-500 text-lg">Error loading assets</p>
+          <p className="text-gray-600 mt-2">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Container maxW="container.xl" py={8}>
       <Flex justify="space-between" align="center" mb={8} wrap="wrap" gap={4}>
@@ -105,7 +127,7 @@ export const Assets = () => {
             <FaSearch color="gray.300" />
           </InputLeftElement>
           <Input 
-            placeholder="Buscar ativo..." 
+            placeholder="Search assets..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             bg="rgba(255,255,255,0.1)"
@@ -128,17 +150,7 @@ export const Assets = () => {
         </HStack>
       </Flex>
       
-      {loading ? (
-        <Box textAlign="center" p={8}>
-          <Spinner size="xl" color="accent.500" />
-          <Text mt={4}>Carregando propriedades...</Text>
-        </Box>
-      ) : error ? (
-        <Box textAlign="center" p={8} color="red.500">
-          <Text>Erro ao carregar propriedades: {error}</Text>
-          <Button mt={4} onClick={() => getAll()}>Tentar novamente</Button>
-        </Box>
-      ) : filteredProperties.length === 0 ? (
+      {filteredProperties.length === 0 ? (
         <Box 
           textAlign="center" 
           p={8} 
