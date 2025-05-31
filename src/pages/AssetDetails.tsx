@@ -25,6 +25,7 @@ import { useRWATokens } from '../hooks/useRWATokens';
 import { marketplaceService } from '../services/marketplaceService';
 import { apiClient } from '../api/client';
 import { CreateProperty } from './CreateProperty';
+import { getTransferHistoryLink } from '../constants/transferHistoryLinks';
 
 // Hook customizado para gerenciar o carregamento do asset
 const useAssetLoader = (id: string | undefined) => {
@@ -344,26 +345,6 @@ export const AssetDetails = () => {
 
   const tokensToInvestNum = typeof tokensToInvest === 'string' ? parseInt(tokensToInvest, 10) : tokensToInvest ?? 1;
 
-  // Handler para abrir modal de histórico de transferência
-  const handleShowHistory = async (tokenId: number) => {
-    setSelectedTokenId(tokenId);
-    setLoadingHistory(true);
-    onHistoryOpen();
-    try {
-      // Busca o histórico de transferência do token pelo endpoint correto
-      console.log('[handleShowHistory] Buscando histórico para token:', tokenId);
-      const res = await apiClient.get(`/api/rwa/ownership-history/token/${tokenId}`);
-      const history = res.data || [];
-      setOwnershipHistory(history);
-      console.log('[handleShowHistory] Histórico carregado:', history);
-    } catch (e) {
-      setOwnershipHistory([]);
-      console.error('[handleShowHistory] Erro ao buscar histórico:', e);
-    } finally {
-      setLoadingHistory(false);
-    }
-  };
-
   // LOGS INTELIGENTES E VARIÁVEL AUXILIAR PARA IMAGENS
   const imagesLength = property?.metadata?.images ? property.metadata.images.length : 0;
   console.log('[render] imagesLength:', imagesLength);
@@ -375,7 +356,7 @@ export const AssetDetails = () => {
     return (
       <Box p={8} textAlign="center">
         <Spinner size="xl" color="accent.500" />
-        <Text mt={4}>Carregando detalhes do imóvel...</Text>
+        <Text mt={4}>Loading property details...</Text>
       </Box>
     );
   }
@@ -682,7 +663,7 @@ export const AssetDetails = () => {
 
             {/* BOTÃO PARA ABRIR MODAL DE TOKENS NFT */}
             <Button colorScheme="blue" size="sm" mb={4} onClick={() => setShowTokensModal(true)}>
-              Ver tokens NFT
+              List Tokens
             </Button>
           </Box>
         </GridItem>
@@ -820,13 +801,13 @@ export const AssetDetails = () => {
       <Modal isOpen={showTokensModal} onClose={() => setShowTokensModal(false)} size="xl">
         <ModalOverlay />
         <ModalContent bg="white" color="black">
-          <ModalHeader>Tokens NFT deste imóvel</ModalHeader>
+          <ModalHeader>NFT Tokens of this Property</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
             {loadingTokens ? (
               <Spinner size="sm" />
             ) : nftTokens.length === 0 ? (
-              <Text color="gray.500">Nenhum token NFT criado ainda.</Text>
+              <Text color="gray.500">No NFT tokens created yet.</Text>
             ) : (
               <Stack spacing={4}>
                 {nftTokens.map(token => {
@@ -854,35 +835,40 @@ export const AssetDetails = () => {
                         {listing && (
                           <>
                             <Text fontSize="sm" color="green.700">
-                              <b>À venda!</b> Preço: ${listing.price_per_token} | Status: {listing.status}
+                              <b>For sale!</b> Price: ${listing.price_per_token} | Status: {listing.status}
                             </Text>
                             <Text fontSize="xs" color="gray.500">
-                              Quantidade disponível: {listing.quantity}
+                              Quantity available: {listing.quantity}
                             </Text>
                           </>
                         )}
                       </Box>
                       <Box>
                         <Text fontSize="sm" color="gray.700">
-                          <b>Dono:</b> {token.owner_user_id}
+                          <b>Owner:</b> {token.owner_user_id}
                         </Text>
                         <Text fontSize="xs" color="gray.500">
-                          Criado em: {new Date(token.created_at).toLocaleString('pt-BR')}
+                          Created at: {new Date(token.created_at).toLocaleString('en-US')}
                         </Text>
-                        <Button mt={2} size="xs" colorScheme="blue" onClick={() => handleShowHistory(token.id)}>
-                          Ver histórico de transferência
+                        <Button mt={2} size="xs" colorScheme="blue" 
+                          as="a"
+                          href={getTransferHistoryLink(token.id)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          View transfer history
                         </Button>
                         {isOwner && (
                           <Flex gap={2} mt={2} justify="flex-end">
                             <IconButton
-                              aria-label="Editar token"
+                              aria-label="Edit token"
                               icon={<FaEdit />}
                               size="sm"
                               colorScheme="blue"
                               onClick={() => handleEditToken(token)}
                             />
                             <IconButton
-                              aria-label="Excluir token"
+                              aria-label="Delete token"
                               icon={<FaTrash />}
                               size="sm"
                               colorScheme="red"
@@ -904,7 +890,7 @@ export const AssetDetails = () => {
       <Modal isOpen={!!tokenToEdit} onClose={() => setTokenToEdit(null)}>
         <ModalOverlay />
         <ModalContent bg="white" color="black">
-          <ModalHeader>Editar Token NFT</ModalHeader>
+          <ModalHeader>Edit NFT Token</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
             <FormControl>
@@ -916,10 +902,10 @@ export const AssetDetails = () => {
           </ModalBody>
           <ModalFooter>
             <Button variant="ghost" mr={3} onClick={() => setTokenToEdit(null)}>
-              Cancelar
+              Cancel
             </Button>
             <Button colorScheme="blue" onClick={handleSaveEdit} isLoading={isEditing}>
-              Salvar
+              Save
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -933,48 +919,20 @@ export const AssetDetails = () => {
       >
         <AlertDialogOverlay />
         <AlertDialogContent>
-          <AlertDialogHeader>Excluir Token NFT</AlertDialogHeader>
+          <AlertDialogHeader>Delete NFT Token</AlertDialogHeader>
           <AlertDialogBody>
-            Tem certeza que deseja excluir este token NFT? Essa ação não pode ser desfeita.
+            Are you sure you want to delete this NFT token? This action cannot be undone.
           </AlertDialogBody>
           <AlertDialogFooter>
             <Button ref={cancelRef} onClick={closeDeleteDialog}>
-              Cancelar
+              Cancel
             </Button>
             <Button colorScheme="red" onClick={handleDeleteToken} ml={3} isLoading={isDeleting}>
-              Excluir
+              Delete
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* MODAL DE HISTÓRICO DE TRANSFERÊNCIA */}
-      <Modal isOpen={isHistoryOpen} onClose={onHistoryClose} isCentered>
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>Histórico de Transferência</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
-            {loadingHistory ? (
-              <Spinner />
-            ) : ownershipHistory.length === 0 ? (
-              <Text>Nenhum histórico encontrado para este token.</Text>
-            ) : (
-              <VStack align="stretch" spacing={2}>
-                {ownershipHistory.map((item, idx) => (
-                  <Box key={idx} p={2} borderWidth={1} borderRadius="md">
-                    <Text><b>De:</b> {item.from_user_id || '-'}</Text>
-                    <Text><b>Para:</b> {item.to_user_id || '-'}</Text>
-                    <Text><b>Data:</b> {item.transfer_date ? new Date(item.transfer_date).toLocaleString() : '-'}</Text>
-                    <Text><b>Quantidade:</b> {item.quantity || '-'}</Text>
-                    <Text><b>Tx Hash:</b> {item.tx_hash || '-'}</Text>
-                  </Box>
-                ))}
-              </VStack>
-            )}
-          </ModalBody>
-        </ModalContent>
-      </Modal>
     </Container>
   );
 }; 

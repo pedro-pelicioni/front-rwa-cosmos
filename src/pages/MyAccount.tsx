@@ -30,8 +30,8 @@ export const MyAccount: React.FC = () => {
 
   if (!user) {
     toast({
-      title: 'Login necessário',
-      description: 'Faça login para acessar sua conta.',
+      title: 'Login required',
+      description: 'Please login to access your account.',
       status: 'warning',
       duration: 4000,
       isClosable: true,
@@ -41,7 +41,7 @@ export const MyAccount: React.FC = () => {
 
   return (
     <Container maxW="container.xl" py={8}>
-      <Heading size="xl" mb={8}>Minha Conta</Heading>
+      <Heading size="xl" mb={8}>My Account</Heading>
 
       <Flex gap={8} direction={{ base: 'column', lg: 'row' }}>
         {/* Perfil */}
@@ -89,24 +89,24 @@ export const MyAccount: React.FC = () => {
       {/* Status KYC */}
       <Card bg="rgba(255,255,255,0.05)" borderColor="bgGrid" borderWidth="1px" mt={8}>
         <CardHeader>
-          <Heading size="md" color="white">Status KYC</Heading>
+          <Heading size="md" color="white">KYC Status</Heading>
         </CardHeader>
         <CardBody>
           <VStack spacing={4} align="stretch">
             <Flex justify="space-between" align="center">
               <Text color="text.dim">Status:</Text>
-              <Badge colorScheme="yellow">Pendente</Badge>
+              <Badge colorScheme="yellow">Pending</Badge>
             </Flex>
             <Alert status="warning">
               <AlertIcon />
               <Box>
-                <AlertTitle>KYC Pendente</AlertTitle>
+                <AlertTitle>KYC Pending</AlertTitle>
                 <AlertDescription>
-                  Complete seu cadastro para poder investir e criar tokens RWA
+                  Complete your registration to invest and create RWA tokens
                 </AlertDescription>
               </Box>
             </Alert>
-            <Button colorScheme="blue">Iniciar KYC</Button>
+            <Button colorScheme="blue">Start KYC</Button>
           </VStack>
         </CardBody>
       </Card>

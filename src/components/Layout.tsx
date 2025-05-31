@@ -44,6 +44,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           <Button as={RouterLink} to="/assets" variant="ghost" color="white" leftIcon={<FaList />}>
             Properties
           </Button>
+          <Button as={RouterLink} to="/marketplace" variant="ghost" color="white">
+            Marketplace
+          </Button>
           <Button as={RouterLink} to="/latammap" variant="ghost" color="white" leftIcon={<FaMap />}>
             Maps
           </Button>

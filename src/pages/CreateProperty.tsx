@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -84,10 +84,11 @@ export const CreateProperty = () => {
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
+    if (name === 'gpsCoordinates') {
+      console.log('[GPS Input] handleInputChange:', value);
+    }
     setFormData(prev => ({ ...prev, [name]: value }));
-    // Limpa o erro quando o usuário começa a editar
     setFormError(null);
-    // Limpa o erro do campo específico
     setFieldErrors(prev => ({ ...prev, [name]: false }));
   };
   
@@ -200,10 +201,10 @@ export const CreateProperty = () => {
         console.log('[CreateProperty] Formulário atualizado com dados aleatórios');
       })
       .catch(error => {
-        console.error('[CreateProperty] Erro ao carregar dados aleatórios:', error);
+        console.error('[CreateProperty] Error loading random data:', error);
         toast({
-          title: "Erro",
-          description: "Não foi possível carregar dados aleatórios. Verifique se o arquivo random-rwa-data.json está na pasta public.",
+          title: "Error",
+          description: "Could not load random data. Please check if the random-rwa-data.json file is in the public folder.",
           status: "error",
           duration: 5000,
           isClosable: true,
@@ -214,9 +215,8 @@ export const CreateProperty = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log('[CreateProperty] Iniciando submissão do formulário');
-    console.log('[CreateProperty] Dados do formulário:', formData);
-    console.log('[CreateProperty] Tipo do price:', typeof formData.price);
-    console.log('[CreateProperty] Valor do price:', formData.price);
+    console.log('[CreateProperty] formData no início do submit:', formData);
+    console.log('[CreateProperty] formData.gpsCoordinates no início do submit:', formData.gpsCoordinates);
     
     setFormError(null);
     setFieldErrors({});
@@ -259,10 +259,10 @@ export const CreateProperty = () => {
     if (hasErrors) {
       console.log('[CreateProperty] Erros de validação encontrados:', newFieldErrors);
       setFieldErrors(newFieldErrors);
-      setFormError("Preencha todos os campos obrigatórios");
+      setFormError("Please fill in all required fields");
       toast({
-        title: "Campos incompletos",
-        description: "Preencha todos os campos obrigatórios",
+        title: "Incomplete Fields",
+        description: "Please fill in all required fields",
         status: "error",
         duration: 3000,
         isClosable: true
@@ -280,26 +280,32 @@ export const CreateProperty = () => {
         currentValue: parseFloat(formData.price),
         totalTokens: parseInt(formData.totalTokens),
         yearBuilt: formData.yearBuilt ? parseInt(formData.yearBuilt) : 0,
-        sizeM2: formData.squareMeters ? parseFloat(formData.squareMeters) : 0,
+        sizeM2: formData.squareMeters ? parseInt(formData.squareMeters) : 0,
         gpsCoordinates: formData.gpsCoordinates,
         status: 'active' as 'active',
         geometry: {},
         metadata: {
-          images: [],
-          documents: [],
-          amenities: []
-        }
+          images: formData.images,
+          documents: formData.documents,
+          amenities: formData.amenities,
+          yearBuilt: formData.yearBuilt ? parseInt(formData.yearBuilt) : 0,
+          squareMeters: formData.squareMeters ? parseInt(formData.squareMeters) : 0,
+          gpsCoordinates: formData.gpsCoordinates,
+        },
       };
+      console.log('[CreateProperty] gpsCoordinates no formData:', formData.gpsCoordinates);
+      console.log('[CreateProperty] gpsCoordinates no payload:', payload.gpsCoordinates);
+      console.log('[CreateProperty] gpsCoordinates no payload.metadata:', payload.metadata.gpsCoordinates);
       
       // Validação adicional para campos obrigatórios
       if (!formData.city || !formData.country) {
-        console.log('[CreateProperty] Erro: Cidade ou país ausentes');
-        throw new Error('Cidade e país são obrigatórios');
+        console.log('[CreateProperty] Error: City or country missing');
+        throw new Error('City and country are required');
       }
       
       if (!formData.price || isNaN(parseFloat(formData.price))) {
-        console.log('[CreateProperty] Erro: Preço inválido');
-        throw new Error('Valor da propriedade é obrigatório e deve ser um número válido');
+        console.log('[CreateProperty] Error: Invalid price');
+        throw new Error('Property value is required and must be a valid number');
       }
       
       console.log('[CreateProperty] Payload antes do envio:', JSON.stringify(payload, null, 2));
@@ -323,8 +329,8 @@ export const CreateProperty = () => {
       console.log('[CreateProperty] Resposta do backend:', property);
 
       toast({
-        title: "Propriedade Criada",
-        description: `Propriedade "${formData.name}" foi criada com sucesso`,
+        title: "Property Created",
+        description: `Property "${formData.name}" was created successfully`,
         status: "success",
         duration: 5000,
         isClosable: true
@@ -357,17 +363,17 @@ export const CreateProperty = () => {
       } else if (error) {
         errorMessage = error;
       } else {
-        errorMessage = "Ocorreu um erro ao criar a propriedade";
+        errorMessage = "An error occurred while creating the property";
       }
       
       const newFieldErrors: {[key: string]: boolean} = {};
       const errorLower = errorMessage.toLowerCase();
       
-      if (errorLower.includes('nome') || errorLower.includes('name')) newFieldErrors.name = true;
-      if (errorLower.includes('cidade') || errorLower.includes('city')) newFieldErrors.city = true;
-      if (errorLower.includes('país') || errorLower.includes('country')) newFieldErrors.country = true;
-      if (errorLower.includes('coordenadas') || errorLower.includes('gps')) newFieldErrors.gpsCoordinates = true;
-      if (errorLower.includes('preço') || errorLower.includes('valor') || errorLower.includes('price')) newFieldErrors.price = true;
+      if (errorLower.includes('name')) newFieldErrors.name = true;
+      if (errorLower.includes('city')) newFieldErrors.city = true;
+      if (errorLower.includes('country')) newFieldErrors.country = true;
+      if (errorLower.includes('coordinates') || errorLower.includes('gps')) newFieldErrors.gpsCoordinates = true;
+      if (errorLower.includes('price') || errorLower.includes('value')) newFieldErrors.price = true;
       if (errorLower.includes('tokens')) newFieldErrors.totalTokens = true;
       
       console.log('[CreateProperty] Campos com erro:', newFieldErrors);
@@ -375,7 +381,7 @@ export const CreateProperty = () => {
       setFieldErrors(newFieldErrors);
       setFormError(errorMessage);
       toast({
-        title: "Erro",
+        title: "Error",
         description: errorMessage,
         status: "error",
         duration: 5000,
@@ -383,6 +389,13 @@ export const CreateProperty = () => {
       });
     }
   };
+
+  useEffect(() => {
+    console.log('[CreateProperty] formData atualizado:', formData);
+    if (formData.gpsCoordinates !== undefined) {
+      console.log('[CreateProperty] formData.gpsCoordinates:', formData.gpsCoordinates);
+    }
+  }, [formData]);
 
   return (
     <Container maxW="container.md" py={8}>
@@ -410,7 +423,7 @@ export const CreateProperty = () => {
             variant="outline"
             colorScheme="blue"
           >
-            Preencher Aleatoriamente
+            Fill Randomly
           </Button>
         </HStack>
         
@@ -428,12 +441,12 @@ export const CreateProperty = () => {
         
         <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
           <FormControl isRequired isInvalid={!!fieldErrors.city}>
-            <FormLabel>Cidade</FormLabel>
+            <FormLabel>City</FormLabel>
             <Input 
               name="city"
               value={formData.city}
               onChange={handleInputChange}
-              placeholder="Ex: São Paulo"
+              placeholder="Ex: New York"
               bg="rgba(255,255,255,0.05)"
               border="1px solid"
               borderColor={fieldErrors.city ? "red.500" : "bgGrid"}
@@ -441,12 +454,12 @@ export const CreateProperty = () => {
           </FormControl>
           
           <FormControl isRequired isInvalid={!!fieldErrors.country}>
-            <FormLabel>País</FormLabel>
+            <FormLabel>Country</FormLabel>
             <Input 
               name="country"
               value={formData.country}
               onChange={handleInputChange}
-              placeholder="Ex: Brasil"
+              placeholder="Ex: United States"
               bg="rgba(255,255,255,0.05)"
               border="1px solid"
               borderColor={fieldErrors.country ? "red.500" : "bgGrid"}
@@ -459,7 +472,10 @@ export const CreateProperty = () => {
           <Input 
             name="gpsCoordinates"
             value={formData.gpsCoordinates}
-            onChange={handleInputChange}
+            onChange={e => {
+              console.log('[GPS Input] Valor digitado:', e.target.value);
+              handleInputChange(e);
+            }}
             placeholder="e.g., -23.5505, -46.6333"
             bg="rgba(255,255,255,0.05)"
             border="1px solid"

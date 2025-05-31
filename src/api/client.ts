@@ -10,7 +10,6 @@ const PUBLIC_ROUTES = [
   '/api/auth/nonce',
   '/api/auth/wallet-login',
   '/api/auth/register',
-  '/api/rwa/images',
   '/api/rwa/nfts',
   '/api/rwa/tokens',
   '/marketplace/listings',
@@ -25,18 +24,19 @@ const isPublicRoute = (url: string): boolean => {
   const path = url.replace(API_URL, '').split('?')[0];
   
   // Verificar se a rota é pública
-  const isPublicRoute = PUBLIC_ROUTES.some(pattern => {
+  return PUBLIC_ROUTES.some(pattern => {
     const regex = new RegExp(pattern);
     return regex.test(path);
   });
-
-  return isPublicRoute;
 };
 
 const createAxiosInstance = (): AxiosInstance => {
   const instance = axios.create({
     baseURL: API_URL,
     timeout: TIMEOUT,
+    headers: {
+      'Content-Type': 'application/json',
+    }
   });
 
   instance.interceptors.request.use(
@@ -52,17 +52,25 @@ const createAxiosInstance = (): AxiosInstance => {
       const url = config.url || '';
       if (!isPublicRoute(url)) {
         const token = authService.getToken();
-        if (token) {
-          // Verifica se o token está expirado
-          if (authService.isTokenExpired(token)) {
-            console.log('[API] Token expirado');
-            throw new Error('Sessão expirada. Por favor, faça login novamente.');
-          }
-          config.headers.Authorization = `Bearer ${token}`;
-        } else {
+        if (!token) {
           console.log('[API] Token não encontrado, redirecionando para login');
           authService.logout();
           throw new Error('Token não encontrado');
+        }
+
+        // Verifica se o token está expirado
+        if (authService.isTokenExpired(token)) {
+          console.log('[API] Token expirado');
+          try {
+            const newToken = await authService.refreshToken();
+            config.headers.Authorization = `Bearer ${newToken.token}`;
+          } catch (error) {
+            console.error('[API] Erro ao renovar token:', error);
+            authService.logout();
+            throw new Error('Sessão expirada. Por favor, faça login novamente.');
+          }
+        } else {
+          config.headers.Authorization = `Bearer ${token}`;
         }
       }
 
@@ -90,11 +98,23 @@ const createAxiosInstance = (): AxiosInstance => {
         return Promise.reject(error);
       }
 
-      // Se for erro 401 e não for rota pública, apenas lança o erro para o componente tratar
+      // Se for erro 401 e não for rota pública, tenta renovar o token
       if (error.response?.status === 401 && !isPublicRoute(config.url || '')) {
-        console.log('[API] Erro 401 recebido, repassando para o componente tratar');
-        // Não faz logout automático aqui!
-        throw new Error('Sessão expirada. Por favor, faça login novamente.');
+        try {
+          const newToken = await authService.refreshToken();
+          if (config.headers) {
+            config.headers.Authorization = `Bearer ${newToken.token}`;
+          } else {
+            config.headers = {
+              Authorization: `Bearer ${newToken.token}`
+            };
+          }
+          return instance(config);
+        } catch (refreshError) {
+          console.error('[API] Erro ao renovar token:', refreshError);
+          authService.logout();
+          throw new Error('Sessão expirada. Por favor, faça login novamente.');
+        }
       }
 
       // Se for erro 404, retorna array vazio para não quebrar a UI

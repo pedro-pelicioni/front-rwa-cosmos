@@ -29,6 +29,15 @@ export const MenuLateral = () => {
         />
         <Button
           as={RouterLink}
+          to="/marketplace"
+          colorScheme="teal"
+          variant="outline"
+          mr={2}
+        >
+          Marketplace
+        </Button>
+        <Button
+          as={RouterLink}
           to="/wallet"
           colorScheme="teal"
           variant="outline"

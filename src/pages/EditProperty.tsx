@@ -460,14 +460,25 @@ export const EditProperty = () => {
     }
   };
 
-  if (isLoading) {
+  if (loading) {
     return (
-      <Container maxW="container.md" py={8}>
-        <VStack spacing={8} align="center">
-          <Spinner size="xl" color="accent.500" thickness="4px" />
-          <Text>Carregando dados da propriedade...</Text>
-        </VStack>
-      </Container>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-lg">Loading property data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <p className="text-red-500 text-lg">Error loading property data</p>
+          <p className="text-gray-600 mt-2">{error}</p>
+        </div>
+      </div>
     );
   }
 
@@ -475,8 +486,8 @@ export const EditProperty = () => {
     <Container maxW="container.md" py={8}>
       <VStack spacing={8} align="stretch" as="form" onSubmit={handleSubmit}>
         <Box>
-          <Heading size="xl" mb={2}>Editar Propriedade</Heading>
-          <Text color="text.dim">Atualize as informações desta propriedade tokenizada</Text>
+          <Heading size="xl" mb={2}>Edit Property</Heading>
+          <Text color="text.dim">Atualize the information of this tokenized property</Text>
         </Box>
         
         {formError && (
@@ -491,8 +502,8 @@ export const EditProperty = () => {
         
         <Tabs variant="enclosed" colorScheme="orange">
           <TabList>
-            <Tab>Informações Básicas</Tab>
-            <Tab>Imagens</Tab>
+            <Tab>Basic Information</Tab>
+            <Tab>Images</Tab>
             <Tab>Extras</Tab>
           </TabList>
           
@@ -523,7 +534,7 @@ export const EditProperty = () => {
                     borderColor={fieldErrors.location ? "red.500" : "bgGrid"}
                   />
                   <FormHelperText color={fieldErrors.location ? "red.300" : "text.dim"}>
-                    Formato obrigatório: Cidade, País (ex: São Paulo, Brasil)
+                    Required format: City, Country (ex: São Paulo, Brasil)
                   </FormHelperText>
                 </FormControl>
                 
@@ -633,10 +644,10 @@ export const EditProperty = () => {
             <TabPanel px={0}>
               <VStack spacing={6} align="stretch">
                 <Box>
-                  <Heading size="md" mb={4}>Imagens da Propriedade</Heading>
+                  <Heading size="md" mb={4}>Property Images</Heading>
                   
                   <FormControl mb={6}>
-                    <FormLabel>Adicionar Imagem por URL</FormLabel>
+                    <FormLabel>Add Image by URL</FormLabel>
                     <HStack mb={2}>
                       <Input 
                         value={newImage}
@@ -652,13 +663,13 @@ export const EditProperty = () => {
                         variant="outline"
                         px={8}
                       >
-                        Adicionar
+                        Add
                       </Button>
                     </HStack>
                   </FormControl>
                   
                   <FormControl mb={6}>
-                    <FormLabel>Upload de Nova Imagem</FormLabel>
+                    <FormLabel>Upload New Image</FormLabel>
                     <HStack mb={2}>
                       <Input
                         type="file"
@@ -676,7 +687,7 @@ export const EditProperty = () => {
                         variant="outline"
                         px={8}
                         isLoading={isUploading}
-                        loadingText="Enviando..."
+                        loadingText="Sending..."
                         isDisabled={!selectedFile}
                       >
                         Upload
@@ -698,7 +709,7 @@ export const EditProperty = () => {
                   
                   <Divider my={4} />
                   
-                  <Heading size="sm" mb={4}>Imagens Atuais</Heading>
+                  <Heading size="sm" mb={4}>Current Images</Heading>
                   
                   {loadingImages ? (
                     <Flex 
@@ -719,7 +730,7 @@ export const EditProperty = () => {
                       textAlign="center"
                     >
                       <ChakraIcon as={FaImage as any} size={40} style={{ margin: '0 auto 16px' }} />
-                      <Text>Nenhuma imagem adicionada</Text>
+                      <Text>No image added</Text>
                     </Box>
                   ) : (
                     <SimpleGrid columns={{ base: 1, sm: 2, md: 3 }} spacing={4}>
@@ -849,15 +860,15 @@ export const EditProperty = () => {
             variant="outline"
             onClick={() => navigate(`/assets/${id}`)}
           >
-            Cancelar
+            Cancel
           </Button>
           <Button 
             type="submit"
             variant="primary"
             isLoading={loading}
-            loadingText="Salvando..."
+            loadingText="Saving..."
           >
-            Salvar Alterações
+            Save Changes
           </Button>
         </HStack>
       </VStack>

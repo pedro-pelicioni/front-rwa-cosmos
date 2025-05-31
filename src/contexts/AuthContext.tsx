@@ -61,8 +61,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem('auth_user', JSON.stringify(response.user));
         
         toast({
-          title: 'Conectado com sucesso!',
-          description: 'Você foi conectado com sucesso!',
+          title: 'Successfully connected!',
+          description: 'You have been successfully connected!',
           status: 'success',
           duration: 5000,
           isClosable: true,

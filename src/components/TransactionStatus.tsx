@@ -57,11 +57,11 @@ export const TransactionStatus: React.FC<TransactionStatusProps> = ({
   const getStatusText = () => {
     switch (status) {
       case 'pending':
-        return 'Processando transação...';
+        return 'Processing transaction...';
       case 'success':
-        return 'Transação concluída!';
+        return 'Transaction completed!';
       case 'error':
-        return 'Erro na transação';
+        return 'Transaction error';
       default:
         return '';
     }
@@ -85,7 +85,7 @@ export const TransactionStatus: React.FC<TransactionStatusProps> = ({
               rel="noopener noreferrer"
               className="text-sm underline hover:opacity-80"
             >
-              Ver na blockchain
+              View on blockchain
             </a>
           )}
         </div>

@@ -49,6 +49,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { tokenService } from '../services/tokenService';
 import { kycService } from '../services/kycService';
+import { imageService } from '../services/imageService';
 
 interface Token {
   id: number;
@@ -97,6 +98,10 @@ export const UserDashboard = () => {
     selfie_2: null as File | null,
   });
   const [docPreviews, setDocPreviews] = useState<{[key: string]: string}>({});
+  const [propertyImagesCount, setPropertyImagesCount] = useState<{[propertyId: number]: number}>({});
+  const [uploadModal, setUploadModal] = useState<{ open: boolean; propertyId: number | null }>({ open: false, propertyId: null });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     console.log('[UserDashboard] Componente montado');
@@ -133,12 +138,12 @@ export const UserDashboard = () => {
         p.userId === user.id ||
         (p.owner && p.owner.id === user.id)
       );
-      console.log('[UserDashboard] Propriedades após filtro:', userProperties);
+      console.log('[UserDashboard] Properties after filter:', userProperties);
       setProperties(userProperties);
       setTotalPages(Math.ceil((userProperties.length || 0) / itemsPerPage));
       console.log('[UserDashboard] setProperties chamado com:', userProperties);
     } catch (error: any) {
-      console.error('Erro ao buscar dados:', error);
+      console.error('Error fetching data:', error);
       if (error.response?.status === 401) {
         navigate('/login');
       }
@@ -167,6 +172,23 @@ export const UserDashboard = () => {
       });
     }
   }, [kycData, toast]);
+
+  // Buscar quantidade de imagens para cada property
+  useEffect(() => {
+    async function fetchImagesCount() {
+      const counts: {[propertyId: number]: number} = {};
+      for (const property of properties) {
+        try {
+          const imgs = await imageService.getByRWAId(property.id);
+          counts[property.id] = imgs.length;
+        } catch {
+          counts[property.id] = 0;
+        }
+      }
+      setPropertyImagesCount(counts);
+    }
+    if (properties.length > 0) fetchImagesCount();
+  }, [properties]);
 
   const handleKYCSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -252,8 +274,38 @@ export const UserDashboard = () => {
     }
   };
 
+  // Função para upload de imagem
+  const handleImageUpload = async () => {
+    if (!selectedFile || !uploadModal.propertyId) return;
+    if (selectedFile.size > 1024 * 1024) {
+      toast({ title: 'Image too large. Please select a file up to 1MB.', status: 'error' });
+      return;
+    }
+    setUploading(true);
+    try {
+      await imageService.upload(
+        uploadModal.propertyId,
+        selectedFile,
+        `Image for property ${uploadModal.propertyId}`,
+        ''
+      );
+      toast({ title: 'Image uploaded successfully!', status: 'success' });
+      // Atualiza a contagem de imagens
+      setPropertyImagesCount(prev => ({
+        ...prev,
+        [uploadModal.propertyId!]: (prev[uploadModal.propertyId!] || 0) + 1
+      }));
+      setUploadModal({ open: false, propertyId: null });
+      setSelectedFile(null);
+    } catch (err) {
+      toast({ title: 'Error uploading image', status: 'error' });
+    } finally {
+      setUploading(false);
+    }
+  };
+
   // LOG: propriedades antes do render
-  console.log('[UserDashboard] Propriedades para renderizar:', properties);
+  console.log('[UserDashboard] Properties to render:', properties);
 
   if (kycData?.status === 'unauthorized') {
     return (
@@ -288,6 +340,12 @@ export const UserDashboard = () => {
               <Text color="gray.300">{user?.email}</Text>
               {user?.address && (
                 <Text color="gray.400" fontSize="sm">Wallet: {user.address}</Text>
+              )}
+              {kycData?.nome && kycData?.cpf && (
+                <VStack align="start" spacing={0} mt={2}>
+                  <Text color="gray.300" fontSize="sm">Name: {kycData.nome}</Text>
+                  <Text color="gray.300" fontSize="sm">Document (CPF): {kycData.cpf}</Text>
+                </VStack>
               )}
             </Box>
           </HStack>
@@ -375,6 +433,8 @@ export const UserDashboard = () => {
                         <Th color="gray.300" fontWeight="bold" py={3}>LOCATION</Th>
                         <Th color="gray.300" fontWeight="bold" py={3}>VALUE</Th>
                         <Th color="gray.300" fontWeight="bold" py={3}>STATUS</Th>
+                        <Th color="gray.300" fontWeight="bold" py={3}>IMAGES</Th>
+                        <Th color="gray.300" fontWeight="bold" py={3}>UPLOAD</Th>
                       </Tr>
                     </Thead>
                     <Tbody>
@@ -405,6 +465,12 @@ export const UserDashboard = () => {
                             >
                               {property.status}
                             </Badge>
+                          </Td>
+                          <Td color="gray.200" py={3}>{propertyImagesCount[property.id] ?? <Spinner size="xs" />}</Td>
+                          <Td color="gray.200" py={3}>
+                            <Button size="xs" onClick={() => setUploadModal({ open: true, propertyId: property.id })}>
+                              Upload Image
+                            </Button>
                           </Td>
                         </Tr>
                       ))}
@@ -441,7 +507,7 @@ export const UserDashboard = () => {
       {/* KYC Initial Modal */}
       <Modal isOpen={isOpen} onClose={onClose}>
         <ModalOverlay />
-        <ModalContent>
+        <ModalContent bg="primary.500" color="text.light">
           <form onSubmit={handleKYCSubmit}>
             <ModalHeader>Complete your Registration</ModalHeader>
             <ModalCloseButton />
@@ -481,7 +547,7 @@ export const UserDashboard = () => {
       {/* Document Upload Modal */}
       <Modal isOpen={isDocModalOpen} onClose={() => setIsDocModalOpen(false)}>
         <ModalOverlay />
-        <ModalContent>
+        <ModalContent bg="primary.500" color="text.light">
           <form onSubmit={handleDocSubmit}>
             <ModalHeader>Upload KYC Documents</ModalHeader>
             <ModalCloseButton />
@@ -526,6 +592,56 @@ export const UserDashboard = () => {
               </Button>
             </ModalFooter>
           </form>
+        </ModalContent>
+      </Modal>
+
+      {/* Image Upload Modal */}
+      <Modal isOpen={uploadModal.open} onClose={() => { setUploadModal({ open: false, propertyId: null }); setSelectedFile(null); }} isCentered>
+        <ModalOverlay />
+        <ModalContent bg="primary.500" color="text.light" borderRadius="lg" boxShadow="2xl" border="1px solid #2a3656" minW="350px">
+          <ModalHeader fontWeight="bold">Upload Image</ModalHeader>
+          <ModalCloseButton color="gray.200" />
+          <ModalBody>
+            <FormControl>
+              <FormLabel>Select image (max 1MB)</FormLabel>
+              <Input
+                type="file"
+                accept="image/*"
+                onChange={e => setSelectedFile(e.target.files?.[0] || null)}
+                bg="rgba(30,40,70,0.95)"
+                color="gray.100"
+                borderColor="#3a4a6a"
+                _placeholder={{ color: 'gray.400' }}
+                _hover={{ borderColor: 'blue.400' }}
+                _focus={{ borderColor: 'blue.400', boxShadow: '0 0 0 1px #3182ce' }}
+              />
+              {selectedFile && (
+                <Text mt={2} fontSize="sm" color="blue.200">{selectedFile.name}</Text>
+              )}
+            </FormControl>
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              variant="ghost"
+              mr={3}
+              onClick={() => { setUploadModal({ open: false, propertyId: null }); setSelectedFile(null); }}
+              color="gray.200"
+              _hover={{ bg: 'rgba(255,255,255,0.08)', color: 'white' }}
+            >
+              Cancel
+            </Button>
+            <Button
+              colorScheme="blue"
+              onClick={handleImageUpload}
+              isLoading={uploading}
+              isDisabled={!selectedFile}
+              fontWeight="bold"
+              px={6}
+              boxShadow="md"
+            >
+              Upload
+            </Button>
+          </ModalFooter>
         </ModalContent>
       </Modal>
     </Container>

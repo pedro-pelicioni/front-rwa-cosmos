@@ -30,6 +30,10 @@ import { tokenService } from '../services/tokenService';
 import { rwaService } from '../services/rwaService';
 import { marketplaceService } from '../services/marketplaceService';
 import { apiClient } from '../api/client';
+import { authService } from '../services/auth';
+import { userService } from '../services/userService';
+import { kycService } from '../services/kycService';
+import { FaIdCard, FaWallet, FaUser, FaLock } from 'react-icons/fa';
 
 export const PaymentPage = () => {
   // Hooks sempre no topo!
@@ -94,6 +98,11 @@ export const PaymentPage = () => {
   const [tokenInfo, setTokenInfo] = useState<any>(null);
   const [saleInfo, setSaleInfo] = useState<any>(null);
   const [mainImage, setMainImage] = useState<string>('');
+  const [buyerKYC, setBuyerKYC] = useState<any>(null);
+  const [buyerWallet, setBuyerWallet] = useState<string | null>(null);
+  const [seller, setSeller] = useState<any>(null);
+  const [sellerKYC, setSellerKYC] = useState<any>(null);
+  const [sellerWallet, setSellerWallet] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -156,7 +165,7 @@ export const PaymentPage = () => {
               return;
             }
           } catch (err: any) {
-            console.error('[PaymentPage] Erro ao verificar token:', err);
+            console.error('[PaymentPage] Error checking token:', err);
             setError(`Token ${tokenIdNum} not found or is not available for purchase. Error: ${err.message}`);
             return;
           }
@@ -200,8 +209,34 @@ export const PaymentPage = () => {
             setMainImage('https://placehold.co/280x160?text=No+Image');
           }
         }
+
+        // Buscar dados do comprador (usuário logado)
+        if (user?.id) {
+          kycService.getStatus().then((kyc) => {
+            console.log('[PaymentPage] Buyer KYC:', kyc);
+            setBuyerKYC(kyc);
+          });
+          console.log('[PaymentPage] Buyer wallet:', user.address || null);
+          setBuyerWallet(user.address || null);
+        }
+        // Buscar dados do vendedor
+        const sellerId = saleInfo?.seller_id || tokenInfo?.owner_user_id;
+        if (sellerId) {
+          userService.getById(sellerId).then((sellerData) => {
+            console.log('[PaymentPage] Seller user:', sellerData);
+            setSeller(sellerData);
+          });
+          kycService.getByUserId(sellerId).then((kyc) => {
+            console.log('[PaymentPage] Seller KYC:', kyc);
+            setSellerKYC(kyc);
+          });
+          userService.getById(sellerId).then((u) => {
+            console.log('[PaymentPage] Seller wallet:', u.address || null);
+            setSellerWallet(u.address || null);
+          });
+        }
       } catch (err) {
-        console.error('[PaymentPage] Erro ao carregar dados:', err);
+        console.error('[PaymentPage] Error loading data:', err);
         setError('Error loading payment information');
         toast({
           title: 'Error',
@@ -221,10 +256,28 @@ export const PaymentPage = () => {
     try {
       setProcessing(true);
       
+      // Verificar se o token existe
+      const token = authService.getToken();
+      if (!token) {
+        toast({
+          title: 'Erro de autenticação',
+          description: 'Por favor, faça login novamente',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+        navigate('/login');
+        return;
+      }
+
       // 1. Transferir o token diretamente
       const response = await apiClient.post(`/api/rwa/tokens/${tokenIdNum}/transfer`, {
         pricePerToken: pricePerTokenNum,
         quantity: quantityNum
+      }, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
       });
       
       if (response.data) {
@@ -237,14 +290,14 @@ export const PaymentPage = () => {
         });
         navigate('/wallet');
       } else {
-        throw new Error('Failed to transfer token');
+        throw new Error('Falha ao transferir token');
       }
     } catch (err) {
       console.error('Erro na transferência:', err);
-      setError('Error processing transfer');
+      setError('Erro ao processar transferência');
       toast({
-        title: 'Error',
-        description: 'Failed to process token transfer',
+        title: 'Erro',
+        description: 'Falha ao processar transferência do token',
         status: 'error',
         duration: 5000,
         isClosable: true,
@@ -276,33 +329,100 @@ export const PaymentPage = () => {
 
   const totalAmount = pricePerTokenNum * quantityNum;
 
+  // Card do comprador
+  const buyerCard = (
+    <Card bg="white" boxShadow="lg" borderRadius="2xl" mb={4} p={0}>
+      <CardBody p={4}>
+        <HStack spacing={4}>
+          <Avatar name={user?.name || buyerKYC?.nome || 'Buyer'} size="lg" bg="blue.500" color="white" icon={<FaUser />} />
+          <VStack align="start" spacing={1}>
+            <Text fontWeight="bold" fontSize="lg">{user?.name || buyerKYC?.nome || 'Not available'}</Text>
+            <Text fontSize="sm" color="gray.500">Buyer</Text>
+            <HStack fontSize="sm" color="gray.600">
+              <FaIdCard />
+              <Text ml={1}>CPF: {buyerKYC?.cpf || 'Not available'}</Text>
+            </HStack>
+            <HStack fontSize="sm" color="gray.600">
+              <FaWallet />
+              <Text ml={1} wordBreak="break-all">{buyerWallet || 'Not available'}</Text>
+            </HStack>
+          </VStack>
+        </HStack>
+      </CardBody>
+    </Card>
+  );
+
+  // Card do vendedor
+  const sellerCard = (
+    <Card bg="white" boxShadow="lg" borderRadius="2xl" mb={4} p={0}>
+      <CardBody p={4}>
+        <HStack spacing={4}>
+          <Avatar name={seller?.name || sellerKYC?.nome || 'Seller'} size="lg" bg="red.500" color="white" icon={<FaUser />} />
+          <VStack align="start" spacing={1}>
+            <Text fontWeight="bold" fontSize="lg">{seller?.name || sellerKYC?.nome || 'Not available'}</Text>
+            <Text fontSize="sm" color="gray.500">Seller</Text>
+            <HStack fontSize="sm" color="gray.600">
+              <FaIdCard />
+              <Text ml={1}>CPF: {sellerKYC?.cpf || 'Not available'}</Text>
+            </HStack>
+            <HStack fontSize="sm" color="gray.600">
+              <FaWallet />
+              <Text ml={1} wordBreak="break-all">{sellerWallet || 'Not available'}</Text>
+            </HStack>
+          </VStack>
+        </HStack>
+      </CardBody>
+    </Card>
+  );
+
+  // Card de taxa da plataforma
+  const platformFee = 0.01 * (pricePerTokenNum * quantityNum);
+  const platformFeeCard = (
+    <Card bg="white" boxShadow="lg" borderRadius="2xl" mb={4} p={0}>
+      <CardBody p={4}>
+        <HStack spacing={3} align="center">
+          <Box flex={1}>
+            <Text fontWeight="bold" fontSize="md">Platform Fee</Text>
+            <Text color="gray.600" fontSize="sm">A fee charged by the platform for this transaction.</Text>
+          </Box>
+          <Text fontSize="xl" fontWeight="bold" color="orange.500">${platformFee.toLocaleString(undefined, { maximumFractionDigits: 2 })}</Text>
+        </HStack>
+      </CardBody>
+    </Card>
+  );
+
   return (
     <Container maxW="container.lg" py={10}>
-      <VStack spacing={8} align="center">
-        {/* Card principal com imagem e infos do imóvel */}
-        <Flex direction={isMobile ? 'column' : 'row'} w="100%" gap={8} align="stretch" justify="center">
-          {/* Imagem do imóvel */}
-          <Box flex={1} bg="white" borderRadius="2xl" boxShadow="2xl" p={0} display="flex" alignItems="center" justifyContent="center" minW="320px" maxW="420px" minH="260px">
-            <Image
-              src={mainImage}
-              alt={assetInfo?.name || 'Property'}
-              w="100%"
-              h="260px"
-              objectFit="cover"
-              borderRadius="2xl"
-              fallbackSrc="https://placehold.co/420x260?text=No+Image"
-            />
-          </Box>
+      <VStack spacing={8} align="center" w="100%">
+        <Heading size="lg" color="gray.700" mb={2} fontWeight="extrabold">Review and Confirm your Purchase</Heading>
+        <Flex direction={isMobile ? 'column' : 'row'} w="100%" gap={8} align="flex-start" justify="center">
+          {/* Coluna da imagem e cards de usuário */}
+          <VStack flex={1} spacing={4} align="stretch">
+            <Box bg="white" borderRadius="2xl" boxShadow="2xl" p={0} display="flex" alignItems="center" justifyContent="center" minW="320px" maxW="420px" minH="260px">
+              <Image
+                src={mainImage}
+                alt={assetInfo?.name || 'Property'}
+                w="100%"
+                h="260px"
+                objectFit="cover"
+                borderRadius="2xl"
+                fallbackSrc="https://placehold.co/420x260?text=No+Image"
+              />
+            </Box>
+            {buyerCard}
+            {sellerCard}
+            {platformFeeCard}
+          </VStack>
 
-          {/* Informações do imóvel */}
+          {/* Coluna dos detalhes da compra */}
           <Box flex={1}>
-            <Card variant="outline" w="100%">
-              <CardHeader>
+            <Card variant="outline" w="100%" bg="white" boxShadow="xl" borderRadius="2xl">
+              <CardHeader pb={0}>
                 <Heading size="md">{assetInfo?.name}</Heading>
                 <Text color="gray.500">{assetInfo?.location}</Text>
               </CardHeader>
               <CardBody>
-                <VStack align="stretch" spacing={4}>
+                <VStack align="stretch" spacing={3}>
                   <Text><b>Token ID:</b> {tokenInfo?.token_identifier || tokenInfo?.id}</Text>
                   <Text><b>Quantity:</b> {quantityNum}</Text>
                   <Text><b>Price per token:</b> ${pricePerTokenNum}</Text>
@@ -312,12 +432,17 @@ export const PaymentPage = () => {
               </CardBody>
               <CardFooter>
                 <Button
-                  colorScheme="blue"
+                  colorScheme="orange"
                   size="lg"
                   w="100%"
+                  leftIcon={<FaLock />}
                   onClick={handlePayment}
                   isLoading={processing}
                   loadingText="Processing..."
+                  fontWeight="bold"
+                  fontSize="lg"
+                  borderRadius="xl"
+                  boxShadow="md"
                 >
                   Confirm Purchase
                 </Button>
